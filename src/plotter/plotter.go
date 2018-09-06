@@ -26,6 +26,12 @@ type Plotter struct {
 	outStringBuffer []string
 }
 
+func NewPlotter() *Plotter {
+	retval := new(Plotter)
+	retval.Init()
+	return retval
+}
+
 /*
 	Initializes Plotter object and genetrates plotter reset command
 */

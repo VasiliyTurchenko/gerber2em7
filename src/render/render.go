@@ -22,19 +22,26 @@ const (
 )
 
 /*
- ************************** Rendering gcontext ****************************
+ ************************** Rendering context ****************************
  */
 type Render struct {
 	// plotter properties
+	// physical plotter single step size
 	XRes         float64
 	YRes         float64
+
+	// pen width
 	PenWidth     [1]float64
+
+	// paper or pcb max dimensions
 	CanvasWidth  int // paper property
 	CanvasHeight int // paper property
 	LimitsX0     int
 	LimitsY0     int
 	LimitsX1     int
 	LimitsY1     int
+
+	// point size in terms of real plotter pen points
 	PointSize    float64
 	PointSizeI   int
 	Plt          *plotter.Plotter
@@ -59,6 +66,8 @@ type Render struct {
 //var rc *Render
 
 func (rc *Render) Init(plt *plotter.Plotter /*, rpr *regions.RegionProcessor*/) {
+
+	// physical plotter single step size
 	rc.XRes = 0.025 // mm per step
 	rc.YRes = 0.025 // mm per step
 
@@ -66,12 +75,16 @@ func (rc *Render) Init(plt *plotter.Plotter /*, rpr *regions.RegionProcessor*/) 
 	//	rc.YRes = 0.25       // mm per step
 
 	rc.PenWidth[0] = 0.07 // mm
+
+	// paper or pcb max dimensions
 	rc.LimitsX0 = 0
 	rc.LimitsY0 = 0
 	rc.CanvasWidth = 297
 	rc.CanvasHeight = 210
 	rc.LimitsX1 = int(float64(rc.CanvasWidth) / float64(rc.XRes))
 	rc.LimitsY1 = int(float64(rc.CanvasHeight) / float64(rc.YRes))
+
+	// point size in terms of real plotter pen points
 	rc.PointSize = rc.PenWidth[0] / rc.XRes
 	rc.PointSizeI = int(math.Round(rc.PointSize))
 
@@ -83,9 +96,8 @@ func (rc *Render) Init(plt *plotter.Plotter /*, rpr *regions.RegionProcessor*/) 
 	rc.MovePenColor = color.RGBA{100, 100, 100, 255}
 	rc.MissedColor = color.RGBA{255, 0, 255, 255}
 	rc.ContourColor = color.RGBA{0, 255, 0, 255}
+
 	rc.Plt = plt
-	//	rc = rc
-	//	rc.RPr = rpr
 	return
 }
 
@@ -147,7 +159,7 @@ func (plc *PlotterConfig) SetDrawAllMode() {
 
 /*----------------------------------------------*/
 // modified 07-Jun-2018
-func (rc *Render) Point(x, y, ptsz int /* img *image.NRGBA, */ , col color.Color) {
+func (rc *Render) Point(x, y, ptsz int, col color.Color) {
 	if ptsz < 0 {
 		return
 	}
@@ -178,14 +190,16 @@ func (rc *Render) Point(x, y, ptsz int /* img *image.NRGBA, */ , col color.Color
 }
 
 // for D01 commands
-func (rc *Render) DrawByRectAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz ,*/ , apsx, apsy int, col color.Color) {
+func (rc *Render) DrawByRectAp(x0, y0, x1, y1, apSizeX, apSizeY int, col color.Color) {
+
 	var w, h, xOrigin, yOrigin int
-	ptsz := int(math.Round(rc.PointSize))
+//	ptsz := int(math.Round(rc.PointSize))
+	ptsz := rc.PointSizeI
 
 	if x0 != x1 && y0 != y1 {
 		fmt.Println("Drawing by rectangular aperture with arbitrary angle is not supported!")
-		rc.circle(x0, y0, apsx/2, ptsz, rc.MissedColor)
-		rc.circle(x1, y1, apsx/2, ptsz, rc.MissedColor)
+		rc.circle(x0, y0, apSizeX/2, ptsz, rc.MissedColor)
+		rc.circle(x1, y1, apSizeX/2, ptsz, rc.MissedColor)
 	}
 	if x0 > x1 {
 		x0, x1 = x1, x0
@@ -197,8 +211,8 @@ func (rc *Render) DrawByRectAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz ,*
 	if x0 == x1 { // vertical draw
 		xOrigin = x0
 		yOrigin = y0 + (y1-y0)/2
-		h = y1 - y0 + apsy
-		w = apsx
+		h = y1 - y0 + apSizeY
+		w = apSizeX
 		// draw by pen from x0,y0 to rectangle's origin
 		rc.DrawByBrezenham(x0, y0, xOrigin, yOrigin, ptsz, col)
 		rc.FilledRectangle(xOrigin, yOrigin, w, h, col)
@@ -209,8 +223,8 @@ func (rc *Render) DrawByRectAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz ,*
 	if y0 == y1 { // horizontal draw
 		yOrigin = y0
 		xOrigin = x0 + (x1-x0)/2
-		w = x1 - x0 + apsx
-		h = apsy
+		w = x1 - x0 + apSizeX
+		h = apSizeY
 		// draw by pen from x0,y0 to rectangle's origin
 		rc.DrawByBrezenham(x0, y0, xOrigin, yOrigin, ptsz, col)
 		rc.FilledRectangle(xOrigin, yOrigin, w, h, col)
@@ -220,7 +234,7 @@ func (rc *Render) DrawByRectAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz ,*
 }
 
 // for D01 commands
-func (rc *Render) DrawByCircleAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz ,*/ , aps int, col color.Color) {
+func (rc *Render) DrawByCircleAp(x0, y0, x1, y1, apDia int, col color.Color) {
 	// save x0, y0, x1, y1
 	savedx0 := x0
 	savedy0 := y0
@@ -230,7 +244,7 @@ func (rc *Render) DrawByCircleAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz 
 	var xpen, ypen int
 	ptsz := rc.PointSizeI
 
-	rc.Donut(x0, y0, aps, 0, col)
+	rc.Donut(x0, y0, apDia, 0, col)
 
 	if y1 < y0 {
 		x0, y0, x1, y1 = x1, y1, x0, y0
@@ -246,11 +260,11 @@ func (rc *Render) DrawByCircleAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz 
 		// draw by pen to xOrigin, y Origin
 		xpen, ypen = rc.DrawByBrezenham(savedx0, savedy0, xOrigin, yOrigin, ptsz, col)
 		w := x1 - x0
-		h := aps
+		h := apDia
 		rc.FilledRectangle(xOrigin, yOrigin, w, h, col)
 		// move pen back to original x1, y1 point
 		xpen, ypen = rc.DrawByBrezenham(xOrigin, yOrigin, savedx1, savedy1, ptsz, col)
-		rc.Donut(savedx1, savedy1, aps, 0, col)
+		rc.Donut(savedx1, savedy1, apDia, 0, col)
 		_, _ = xpen, ypen
 		return
 	}
@@ -260,13 +274,13 @@ func (rc *Render) DrawByCircleAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz 
 		xOrigin := x0
 		yOrigin := y0 + (y1-y0)/2
 		h := y1 - y0
-		w := aps
+		w := apDia
 		// draw by pen to xOrigin, y Origin
 		xpen, ypen = rc.DrawByBrezenham(savedx0, savedy0, xOrigin, yOrigin, ptsz, col)
 		rc.FilledRectangle(xOrigin, yOrigin, w, h, col)
 		// move pen back to original x1, y1 point
 		xpen, ypen = rc.DrawByBrezenham(xOrigin, yOrigin, savedx1, savedy1, ptsz, col)
-		rc.Donut(savedx1, savedy1, aps, 0, col)
+		rc.Donut(savedx1, savedy1, apDia, 0, col)
 		_, _ = xpen, ypen
 		return
 	}
@@ -278,12 +292,12 @@ func (rc *Render) DrawByCircleAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz 
 	if x1 > x0 {
 		sdelta = -1.0
 	}
-	var lines = aps / ptsz
+	var lines = apDia / ptsz
 	if lines < 1 {
 		lines = 1
 	}
 	alpha := math.Asin(dy / l) //
-	hypo := (float64(aps) / 2) - (float64(ptsz) / 2)
+	hypo := (float64(apDia) / 2) - (float64(ptsz) / 2)
 	sin1 := math.Sin((math.Pi / 2) - alpha)
 	cos1 := math.Cos((math.Pi / 2) - alpha)
 	yv0 := float64(y0) - hypo*sin1
@@ -307,7 +321,7 @@ func (rc *Render) DrawByCircleAp( /*img *image.NRGBA, */ x0, y0, x1, y1 /* ptsz 
 	// draw back to saved x1, y1
 	xpen, ypen = rc.DrawByBrezenham(nx1, ny1, savedx1, savedy1, ptsz, col)
 	// and final donut
-	rc.Donut(savedx1, savedy1, aps, 0, col)
+	rc.Donut(savedx1, savedy1, apDia, 0, col)
 	_, _ = xpen, ypen
 }
 
@@ -435,22 +449,22 @@ func (rc *Render) FilledRectangle(origX, origY, w, h /*, ptsz */ int, col color.
 	Stat.FilledRctCounter++
 }
 
-func (rc *Render) Donut(origX, origY, d, hd /*, ptsz*/ int, col color.Color) {
+func (rc *Render) Donut(origX, origY, dia, holeDia int, col color.Color) {
 	// performs donut (circle) aperture flash
 	ptsz := rc.PointSizeI
-	r := d / 2
-	hr := hd / 2
+	radius := dia / 2
+	holeRadius := holeDia / 2
 	if PlCfg.DrawContours == true {
-		rc.circle(origX, origY, r, 1, rc.ContourColor)
-		if hd > 0 {
-			rc.circle(origX, origY, hr, 1, rc.ContourColor)
+		rc.circle(origX, origY, radius, 1, rc.ContourColor)
+		if holeDia > 0 {
+			rc.circle(origX, origY, holeRadius, 1, rc.ContourColor)
 		}
 	}
-	r = r - (ptsz / 2)
+	radius = radius - (ptsz / 2)
 	for {
-		rc.circle(origX, origY, r, ptsz, col)
-		r = r - ptsz
-		if r < hr+(ptsz/2) {
+		rc.circle(origX, origY, radius, ptsz, col)
+		radius = radius - ptsz
+		if radius < holeRadius+(ptsz/2) {
 			break
 		}
 	}
@@ -504,13 +518,13 @@ func (rc *Render) circle(x, y, r, ptsz int, col color.Color) {
 func (rc *Render) MovePen(x1, y1, x2, y2, ptsz int, col color.Color) (int, int) {
 	Stat.MovePenCounters++
 	Stat.MovePenDistance += hyp(float64(x2-x1), float64(y2-y1))
-	newx := x2
-	newy := y2
+	newX := x2
+	newY := y2
 	if PlCfg.DrawMoves == true {
-		newx, newy = rc.bresenham(x1, y1, x2, y2, ptsz, col)
+		newX, newY = rc.bresenham(x1, y1, x2, y2, ptsz, col)
 	}
 	rc.Plt.MoveTo(x2, y2)
-	return newx, newy
+	return newX, newY
 }
 
 func (rc *Render) DrawByBrezenham(x1, y1, x2, y2, ptsz int, col color.Color) (int, int) {
@@ -674,7 +688,7 @@ func (rc *Render) Arc(x1, y1, x2, y2, i, j float64, aps int /* ptsz int, */ , ip
 		cosfi1 = -1
 	}
 
-	fi1 := Rad2deg(math.Acos(cosfi1))
+	fi1 := Rad2Deg(math.Acos(cosfi1))
 	if float64(y1)-yc < 0 {
 		fi1 = 360.0 - fi1
 	}
@@ -685,7 +699,7 @@ func (rc *Render) Arc(x1, y1, x2, y2, i, j float64, aps int /* ptsz int, */ , ip
 	} else if cosfi2 < -1 {
 		cosfi2 = -1
 	}
-	fi2 := Rad2deg(math.Acos(cosfi2))
+	fi2 := Rad2Deg(math.Acos(cosfi2))
 	if float64(y2)-yc < 0 {
 		fi2 = 360.0 - fi2
 	}
@@ -712,8 +726,8 @@ func (rc *Render) Arc(x1, y1, x2, y2, i, j float64, aps int /* ptsz int, */ , ip
 
 			angle := fi1
 			for {
-				ax := int(math.Round(r*math.Cos(Deg2rad(angle)) + xc))
-				ay := int(math.Round(r*math.Sin(Deg2rad(angle)) + yc))
+				ax := int(math.Round(r*math.Cos(Deg2Rad(angle)) + xc))
+				ay := int(math.Round(r*math.Sin(Deg2Rad(angle)) + yc))
 				if ppx != ax || ppy != ay {
 					//					img.Set(ax, ay, col)
 					rc.circle(ax, ay, ptsz, 1, col)
@@ -747,8 +761,8 @@ func (rc *Render) Arc(x1, y1, x2, y2, i, j float64, aps int /* ptsz int, */ , ip
 
 			angle := fi1
 			for {
-				ax := int(math.Round(r*math.Cos(Deg2rad(angle)) + xc))
-				ay := int(math.Round(r*math.Sin(Deg2rad(angle)) + yc))
+				ax := int(math.Round(r*math.Cos(Deg2Rad(angle)) + xc))
+				ay := int(math.Round(r*math.Sin(Deg2Rad(angle)) + yc))
 				if ppx != ax || ppy != ay {
 					//					img.Set(ax, ay, col)
 					rc.circle(ax, ay, ptsz, 1, col)
@@ -769,28 +783,28 @@ func (rc *Render) Arc(x1, y1, x2, y2, i, j float64, aps int /* ptsz int, */ , ip
 }
 
 // obround aperture flash
-func (rc *Render) ObRound(xc, yc, w, h, hd int, color color.Color) {
-	var d int
-	if w > h {
-		d = h
-		rc.FilledRectangle(xc, yc, w-d, h, color)
-		xd1 := xc - (w / 2) + (d / 2)
-		xd2 := xc + (w / 2) - (d / 2)
-		rc.Donut(xd1, yc, d, hd, color)
-		rc.Donut(xd2, yc, d, hd, color)
+func (rc *Render) ObRound(centerX, centerY, width, height, holeDia int, color color.Color) {
+	var sideDia int
+	if width > height {
+		sideDia = height
+		rc.FilledRectangle(centerX, centerY, width-sideDia, height, color)
+		xd1 := centerX - (width / 2) + (sideDia / 2)
+		xd2 := centerX + (width / 2) - (sideDia / 2)
+		rc.Donut(xd1, centerY, sideDia, holeDia, color)
+		rc.Donut(xd2, centerY, sideDia, holeDia, color)
 	} else {
-		d = w
-		rc.FilledRectangle(xc, yc, w, h-d, color)
-		yd1 := yc - (h / 2) + (d / 2)
-		yd2 := yc + (h / 2) - (d / 2)
-		rc.Donut(xc, yd1, d, hd, color)
-		rc.Donut(xc, yd2, d, hd, color)
+		sideDia = width
+		rc.FilledRectangle(centerX, centerY, width, height-sideDia, color)
+		yd1 := centerY - (height / 2) + (sideDia / 2)
+		yd2 := centerY + (height / 2) - (sideDia / 2)
+		rc.Donut(centerX, yd1, sideDia, holeDia, color)
+		rc.Donut(centerX, yd2, sideDia, holeDia, color)
 
 		/*
 			fmt.Println(">>>>>>>>>>>>>>>>>")
-			fmt.Println(xc, yc)
-			fmt.Println(xc, yd1, d, hd)
-			fmt.Println(xc, yd2, d, hd)
+			fmt.Println(centerX, centerY)
+			fmt.Println(centerX, yd1, sideDia, holeDia)
+			fmt.Println(centerX, yd2, sideDia, holeDia)
 		*/
 	}
 	Stat.ObRoundCounter++
@@ -807,12 +821,12 @@ func hyp(a, b float64) float64 {
 }
 
 //
-func Rad2deg(a float64) float64 {
+func Rad2Deg(a float64) float64 {
 	return 360 * a / (2 * math.Pi)
 }
 
 //
-func Deg2rad(a float64) float64 {
+func Deg2Rad(a float64) float64 {
 	return (a / 360) * (2 * math.Pi)
 }
 
@@ -1134,7 +1148,7 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 		cosfi1 = -1
 	}
 
-	fi1 := Rad2deg(math.Acos(cosfi1))
+	fi1 := Rad2Deg(math.Acos(cosfi1))
 	if st.PrevCoord.GetY()-yc < 0 {
 		fi1 = 360.0 - fi1
 	}
@@ -1145,7 +1159,7 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 	} else if cosfi2 < -1 {
 		cosfi2 = -1
 	}
-	fi2 := Rad2deg(math.Acos(cosfi2))
+	fi2 := Rad2Deg(math.Acos(cosfi2))
 	if st.Coord.GetY()-yc < 0 {
 		fi2 = 360.0 - fi2
 	}
@@ -1157,8 +1171,8 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 
 		angle := fi1
 		for {
-			ax := r*math.Cos(Deg2rad(angle)) + xc
-			ay := r*math.Sin(Deg2rad(angle)) + yc
+			ax := r*math.Cos(Deg2Rad(angle)) + xc
+			ay := r*math.Sin(Deg2Rad(angle)) + yc
 			ay, res := rc.addToCorners(ax, ay)
 			if res == true {
 				if ay > *maxpoly {
@@ -1179,8 +1193,8 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 		}
 		angle := fi1
 		for {
-			ax := r*math.Cos(Deg2rad(angle)) + xc
-			ay := r*math.Sin(Deg2rad(angle)) + yc
+			ax := r*math.Cos(Deg2Rad(angle)) + xc
+			ay := r*math.Sin(Deg2Rad(angle)) + yc
 			ay, res := rc.addToCorners(ax, ay)
 			if res == true {
 				if ay > *maxpoly {

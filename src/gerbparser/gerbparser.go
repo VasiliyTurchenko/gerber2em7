@@ -442,10 +442,10 @@ type Region struct {
 	//	prev    *Region
 	//	next    *Region
 	//	apType  *Aperture
-	startXY *XY // pointer to start entry
-	numXY   int // number of entries
-	snG36   int // number of the string with G36 cmd
-	snG37   int // number of the string with G37 cmd
+	startXY         *XY // pointer to start entry
+	numberOfXY      int // number of entries
+	G36StringNumber int // number of the string with G36 cmd
+	G37StringNumber int // number of the string with G37 cmd
 	//	numSegments int // number of closed segments
 }
 
@@ -461,10 +461,10 @@ func (region *Region) Init( /* pr *Region, */ strnum int /*apert *Aperture*/) er
 			region.prev = pr
 		}
 	*/
-	region.snG36 = strnum
+	region.G36StringNumber = strnum
 	//	region.apType = apert
-	region.numXY = 0
-	region.snG37 = -1
+	region.numberOfXY = 0
+	region.G37StringNumber = -1
 	return nil
 }
 
@@ -473,14 +473,14 @@ func (region *Region) Close(strnum int) error {
 	if region == nil {
 		return errors.New("can not close the contour referenced by null pointer")
 	}
-	region.snG37 = strnum
+	region.G37StringNumber = strnum
 	return nil
 }
 
 // sets a start coordinate entry
 func (region *Region) SetStartXY(in *XY) {
 	region.startXY = in
-	region.numXY++
+	region.numberOfXY++
 }
 
 // returns a start coordinate entry
@@ -490,13 +490,13 @@ func (region *Region) GetStartXY() *XY {
 
 // increments number of coordinate entries
 func (region *Region) IncNumXY() int {
-	region.numXY++
-	return region.numXY
+	region.numberOfXY++
+	return region.numberOfXY
 }
 
 // returns the number of coordinate entries of the contour
 func (region *Region) GetNumXY() int {
-	return region.numXY
+	return region.numberOfXY
 }
 
 // returns true if region is opened
@@ -504,7 +504,7 @@ func (region *Region) RegionOpened() (bool, error) {
 	if region == nil {
 		return false, errors.New("bad region referenced (by nil ptr)")
 	}
-	if region.snG37 == -1 {
+	if region.G37StringNumber == -1 {
 		return true, nil
 	} else {
 		return false, nil
@@ -653,7 +653,7 @@ const (
 
 type Aperture struct {
 	Code         int
-	Str          string
+	SourceString string
 	Type         GerberAptype
 	XSize        float64
 	YSize        float64
@@ -668,7 +668,6 @@ type Aperture struct {
 type BlockAperture struct {
 	StartStringNum int
 	Code           int
-	//	APBodyPtr      []*string
 	APBodyPtr  []string
 	APStepsPtr []*State
 }
@@ -713,33 +712,33 @@ func (apert *Aperture) GetCode() int {
 	return apert.Code
 }
 
-func (apert *Aperture) Init(ins string, fs *FormatSpec) error {
+func (apert *Aperture) Init(sourceString string, fs *FormatSpec) error {
 	//	var result error = nil
-	//	ins = strings.ToUpper(ins)
-	ins = strings.TrimSpace(ins)
+	//	sourceString = strings.ToUpper(sourceString)
+	sourceString = strings.TrimSpace(sourceString)
 	var err error = nil
-	apert.Str = ins
-	codepos := strings.IndexAny(ins, "CROP")
-	apert.Code, err = strconv.Atoi(ins[:codepos])
-	if err == nil {
+	apert.SourceString = sourceString
 
-		var td float64
-		tsl := strings.Split(ins[codepos+2:], "X")
-		for j := range tsl {
-			tsl[j] = strings.TrimSpace(tsl[j])
+	apertureCodePosition := strings.IndexAny(sourceString, "CROP")
+	apert.Code, err = strconv.Atoi(sourceString[:apertureCodePosition])
+	if err == nil {
+		var tmpVal float64
+		tmpSplitted := strings.Split(sourceString[apertureCodePosition+2:], "X")
+		for j := range tmpSplitted {
+			tmpSplitted[j] = strings.TrimSpace(tmpSplitted[j])
 		}
-		switch ins[codepos] {
+		switch sourceString[apertureCodePosition] {
 		case 'C':
 			apert.Type = AptypeCircle
-			if len(tsl) == 1 || len(tsl) == 2 {
-				for i, s := range tsl {
-					td, err = strconv.ParseFloat(s, 32)
+			if len(tmpSplitted) == 1 || len(tmpSplitted) == 2 {
+				for i, s := range tmpSplitted {
+					tmpVal, err = strconv.ParseFloat(s, 32)
 					if err == nil {
 						switch i {
 						case 0:
-							apert.Diameter = float64(td)
+							apert.Diameter = float64(tmpVal)
 						case 1:
-							apert.HoleDiameter = float64(td)
+							apert.HoleDiameter = float64(tmpVal)
 						}
 					}
 				}
@@ -748,17 +747,17 @@ func (apert *Aperture) Init(ins string, fs *FormatSpec) error {
 			}
 		case 'R':
 			apert.Type = AptypeRectangle
-			if len(tsl) == 2 || len(tsl) == 3 {
-				for i, s := range tsl {
-					td, err = strconv.ParseFloat(s, 32)
+			if len(tmpSplitted) == 2 || len(tmpSplitted) == 3 {
+				for i, s := range tmpSplitted {
+					tmpVal, err = strconv.ParseFloat(s, 32)
 					if err == nil {
 						switch i {
 						case 0:
-							apert.XSize = float64(td)
+							apert.XSize = float64(tmpVal)
 						case 1:
-							apert.YSize = float64(td)
+							apert.YSize = float64(tmpVal)
 						case 2:
-							apert.HoleDiameter = float64(td)
+							apert.HoleDiameter = float64(tmpVal)
 						}
 					}
 				}
@@ -767,18 +766,17 @@ func (apert *Aperture) Init(ins string, fs *FormatSpec) error {
 			}
 		case 'O':
 			apert.Type = AptypeObround
-			//			tsl := strings.Split(ins, "X")
-			if len(tsl) == 2 || len(tsl) == 3 {
-				for i, s := range tsl {
-					td, err = strconv.ParseFloat(s, 32)
+			if len(tmpSplitted) == 2 || len(tmpSplitted) == 3 {
+				for i, s := range tmpSplitted {
+					tmpVal, err = strconv.ParseFloat(s, 32)
 					if err == nil {
 						switch i {
 						case 0:
-							apert.XSize = float64(td)
+							apert.XSize = float64(tmpVal)
 						case 1:
-							apert.YSize = float64(td)
+							apert.YSize = float64(tmpVal)
 						case 2:
-							apert.HoleDiameter = float64(td)
+							apert.HoleDiameter = float64(tmpVal)
 						}
 					}
 				}
@@ -787,19 +785,19 @@ func (apert *Aperture) Init(ins string, fs *FormatSpec) error {
 			}
 		case 'P':
 			apert.Type = AptypePoly
-			if len(tsl) >= 2 && len(tsl) < 5 {
-				for i, s := range tsl {
-					td, err = strconv.ParseFloat(s, 32)
+			if len(tmpSplitted) >= 2 && len(tmpSplitted) < 5 {
+				for i, s := range tmpSplitted {
+					tmpVal, err = strconv.ParseFloat(s, 32)
 					if err == nil {
 						switch i {
 						case 0:
-							apert.Diameter = float64(td) // OuterDiameter
+							apert.Diameter = float64(tmpVal) // OuterDiameter
 						case 1:
-							apert.Vertices = int(td)
+							apert.Vertices = int(tmpVal)
 						case 2:
-							apert.RotAngle = float64(td)
+							apert.RotAngle = float64(tmpVal)
 						case 3:
-							apert.HoleDiameter = float64(td)
+							apert.HoleDiameter = float64(tmpVal)
 						}
 					}
 				}
@@ -916,16 +914,16 @@ func NewStep() *State {
 	return step
 }
 
-type GStringProcRes int
+type GerberStringProcessingResult int
 
 const (
-	SCResultNextString GStringProcRes = iota + 1 // need next string to complete step
-	SCResultSkipString                           // string was skipped
-	SCResultStepCmpltd                           // step creation completed
+	SCResultNextString GerberStringProcessingResult = iota + 1 // need next string to complete step
+	SCResultSkipString                                         // string was skipped
+	SCResultStepCmpltd                                         // step creation completed
 	SCResultStop
 )
 
-func (step *State) CreateStep(ins *string, prevstep *State, apertl *list.List, regl *list.List, i int, fSpec *FormatSpec) GStringProcRes {
+func (step *State) CreateStep(ins *string, prevstep *State, apertl *list.List, regl *list.List, i int, fSpec *FormatSpec) GerberStringProcessingResult {
 
 	// sequentally fill all the fields
 	// after opcode string finalize the step
@@ -959,9 +957,9 @@ func (step *State) CreateStep(ins *string, prevstep *State, apertl *list.List, r
 	}
 	if strings.Compare("G37*", *ins) == 0 {
 		// G37 command is found
-		rs, err := step.Region.RegionOpened()
+		regionOPenedState, err := step.Region.RegionOpened()
 		CheckError(err, 401)
-		if rs == true { // creg is opened
+		if regionOPenedState == true { // creg is opened
 			err = step.Region.Close(i)
 			CheckError(err, 402)
 			step.Region = nil

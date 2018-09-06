@@ -17,7 +17,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -43,25 +42,26 @@ var gerberStrings []string // all the strings
 //var xy *gerbparser.XY // first coordinates record
 
 var fSpec *gerbparser.FormatSpec
-var apert *gerbparser.Aperture
+var aperture *gerbparser.Aperture
 
 //var creg *gerbparser.Region
 
-var plt *plotter.Plotter
+var plotterInstance *plotter.Plotter
 
 var arrayOfSteps []*gerbparser.State // state machine
 //var SRBlocks []*gerbparser.SR        // SR blocks
-var regl *list.List   // regions
-var apertl *list.List // apertures
-var apertblocks map[string]*gerbparser.BlockAperture
+var regl *list.List          // regions
+var aperturesList *list.List // apertures
+var apertureBlocks map[string]*gerbparser.BlockAperture
 
 var maxX, maxY float64 = 0, 0
 var minX, minY float64 = 1000000.0, 1000000.0
 
-var s
+//var s
 
 func main() {
 
+/*
 	viper.SetConfigName("config")     // no need to include file extension
 	viper.AddConfigPath(".")  // set the path of your config file
 
@@ -74,7 +74,7 @@ func main() {
 	}
 
 
-
+*/
 
 		flag.Parse()
 	fmt.Println(*verboselevel)
@@ -126,78 +126,60 @@ func main() {
 
 	/* ---------------------- extract apertures and aperture blocks  --------------------- */
 	// and aperture macros - TODO!!!!!
-	apertl = list.New()
-	apertblocks = make(map[string]*gerbparser.BlockAperture)
-	abopened := make([]string, 0)
+	aperturesList = list.New()
+	apertureBlocks = make(map[string]*gerbparser.BlockAperture)
+	apertureBlockOpened := make([]string, 0)
 
 	gerberStrings2 := make([]string, 0) // where to put strings to be source of the steps
 
 	PrintMemUsage("Memory usage before extracting apertures:")
 
-	for i, s := range gerberStrings {
-		/*------------------ aperture blocks processing ----------------- */
-		if strings.Compare(s, "%AB*%") == 0 {
-			last := len(abopened) - 1
+	// Aperture processing loop
+	for i, gerberString := range gerberStrings {
+
+		// aperture blocks processing
+		if strings.Compare(gerberString, gerbparser.GerberApertureBlockDefEnd) == 0 {
+			last := len(apertureBlockOpened) - 1
 			if last < 0 {
 				panic("No more open aperture blocks left!")
 			}
-			//			apertblocks[abopened[last]].APBodyPtr = append(apertblocks[abopened[last]].APBodyPtr, &gerberStrings[i])
-
-			bapert := new(gerbparser.Aperture)
-			bapert.Code = apertblocks[abopened[last]].Code
-			bapert.Type = gerbparser.AptypeBlock
-			bapert.BlockPtr = apertblocks[abopened[last]]
-			bapert.BlockPtr.APStepsPtr = make([]*gerbparser.State, len(bapert.BlockPtr.APBodyPtr)+1)
-			bapert.BlockPtr.APStepsPtr[0] = gerbparser.NewStep()
-			abopened = abopened[:last]
-			apertl.PushBack(bapert) // store correct aperture
-
-			/*
-				if last == 0 {
-					for i := range apertblocks {
-						fmt.Println("Aperture block #", i)
-						fmt.Println("Aperture code", apertblocks[i].Code)
-						fmt.Println("\tstarts at", apertblocks[i].StartStringNum)
-						for j := range apertblocks[i].APBodyPtr {
-							fmt.Println("\t\tAB string", j, "value=", apertblocks[i].APBodyPtr[j])
-						}
-					}
-				}
-			*/
+			aperture := new(gerbparser.Aperture)
+			aperture.Code = apertureBlocks[apertureBlockOpened[last]].Code
+			aperture.Type = gerbparser.AptypeBlock
+			aperture.BlockPtr = apertureBlocks[apertureBlockOpened[last]]
+			aperture.BlockPtr.APStepsPtr = make([]*gerbparser.State, len(aperture.BlockPtr.APBodyPtr)+1)
+			aperture.BlockPtr.APStepsPtr[0] = gerbparser.NewStep()
+			apertureBlockOpened = apertureBlockOpened[:last]
+			aperturesList.PushBack(aperture) // store correct aperture
 			continue
 		}
 		// new block is met
-		if strings.HasPrefix(s, gerbparser.GerberApertureBlockDef) &&
-			strings.HasSuffix(s, "*%") {
+		if strings.HasPrefix(gerberString, gerbparser.GerberApertureBlockDef) &&
+			strings.HasSuffix(gerberString, "*%") {
 			// aperture block found
-			cab := new(gerbparser.BlockAperture)
-			cab.StartStringNum = i
-			//			cab.APBodyPtr = append(cab.APBodyPtr, &gerberStrings[i])
-			cab.Code, err = strconv.Atoi(gerberStrings[i][4 : len(gerberStrings[i])-2])
-
-			/*			cab.APStepsPtr = make([]*gerbparser.State, 0)
-						cab.APStepsPtr = append(cab.APStepsPtr, gerbparser.NewStep()) // add root step of this block
-			*/
-			apertblocks[gerberStrings[i]] = cab
-			abopened = append(abopened, gerberStrings[i])
+			apBlk := new(gerbparser.BlockAperture)
+			apBlk.StartStringNum = i
+			apBlk.Code, err = strconv.Atoi(gerberStrings[i][4 : len(gerberStrings[i])-2])
+			apertureBlocks[gerberStrings[i]] = apBlk
+			apertureBlockOpened = append(apertureBlockOpened, gerberStrings[i])
 			continue
 		}
 
-		if len(abopened) != 0 {
-			last := len(abopened) - 1
-			apertblocks[abopened[last]].APBodyPtr = append(apertblocks[abopened[last]].APBodyPtr, gerberStrings[i])
+		if len(apertureBlockOpened) != 0 {
+			last := len(apertureBlockOpened) - 1
+			apertureBlocks[apertureBlockOpened[last]].APBodyPtr = append(apertureBlocks[apertureBlockOpened[last]].APBodyPtr, gerberStrings[i])
 			continue
 		}
 		/*------------------ aperture blocks processing END ----------------- */
 
 		/*------------------ standard apertures processing  ------------------*/
-		if strings.HasPrefix(s, gerbparser.GerberApertureDef) &&
-			strings.HasSuffix(s, "*%") {
+		if strings.HasPrefix(gerberString, gerbparser.GerberApertureDef) &&
+			strings.HasSuffix(gerberString, "*%") {
 			// possible aperture definition found
-			apert = new(gerbparser.Aperture)
-			apErr := apert.Init(s[4:len(s)-2], fSpec)
+			aperture = new(gerbparser.Aperture)
+			apErr := aperture.Init(gerberString[4:len(gerberString)-2], fSpec)
 			CheckError(apErr, 500)
-			apertl.PushBack(apert) // store correct aperture
+			aperturesList.PushBack(aperture) // store correct aperture
 			continue
 		}
 
@@ -206,12 +188,15 @@ func main() {
 		// TODO
 
 		// all unprocessed above goes here
-		gerberStrings2 = append(gerberStrings2, s)
+		gerberStrings2 = append(gerberStrings2, gerberString)
 	}
+
 	// Global array of commands
 	gerberStrings = gerberStrings2
 	gerberStrings2 = nil
+
 	saveIntermediate(&gerberStrings, "before_steps.txt")
+
 	// Main sequence of steps
 	arrayOfSteps = make([]*gerbparser.State, len(gerberStrings)+1)
 	// Global Step and Repeat blocks array
@@ -221,17 +206,17 @@ func main() {
 
 	//  Aperture blocks must be converted to the steps w/o AB
 	//  S&R blocks and regions inside each instance of AB added to the global lists!
-	for ablock := range apertblocks {
-		bsn := CreateStepSequence(&apertblocks[ablock].APBodyPtr, &apertblocks[ablock].APStepsPtr, apertl, regl, fSpec)
-		apertblocks[ablock].APStepsPtr = apertblocks[ablock].APStepsPtr[:bsn]
-		//		apertblocks[ablock].Print()
+	for ablock := range apertureBlocks {
+		bsn := CreateStepSequence(&apertureBlocks[ablock].APBodyPtr, &apertureBlocks[ablock].APStepsPtr, aperturesList, regl, fSpec)
+		apertureBlocks[ablock].APStepsPtr = apertureBlocks[ablock].APStepsPtr[:bsn]
+		//		apertureBlocks[ablock].Print()
 	}
 
 	fmt.Println()
 	PrintMemUsage("Memory usage before creating main step sequence:")
 
-	// func CreateStepSequence(src *[]string, resSteps *[]*gerbparser.State, apertl *list.List, regl *list.List, fSpec *gerbparser.FormatSpec) (stepnum int)
-	stepnum := CreateStepSequence(&gerberStrings, &arrayOfSteps, apertl, regl, fSpec)
+	// func CreateStepSequence(src *[]string, resSteps *[]*gerbparser.State, aperturesList *list.List, regl *list.List, fSpec *gerbparser.FormatSpec) (stepnum int)
+	stepnum := CreateStepSequence(&gerberStrings, &arrayOfSteps, aperturesList, regl, fSpec)
 	/*
 	   /////
 	   // state machine current states
@@ -249,7 +234,7 @@ func main() {
 	   			step.PrevCoord = nil
 	   		}
 	   		//		fmt.Printf(">>>>>%v  %v\n", stepnum, arrayOfSteps[stepnum])
-	   		procres := step.CreateStep(&gerberStrings[i], arrayOfSteps[stepnum-1], apertl, regl, i, fSpec)
+	   		procres := step.CreateStep(&gerberStrings[i], arrayOfSteps[stepnum-1], aperturesList, regl, i, fSpec)
 	   		switch procres {
 	   		case gerbparser.SCResultNextString:
 	   			fallthrough
@@ -337,7 +322,7 @@ func main() {
 	fmt.Println("Total", j, "regions found.")
 
 	j = 0
-	for k := apertl.Front(); k != nil; k = k.Next() {
+	for k := aperturesList.Front(); k != nil; k = k.Next() {
 		fmt.Printf("%+v\n", k.Value)
 		j++
 	}
@@ -366,9 +351,11 @@ func main() {
 	/*
 	   let's render the PCB
 	*/
-	plt = new(plotter.Plotter)
-	plt.Init()
-	plt.Pen(1)
+//	plotterInstance = new(plotter.Plotter)
+//	plotterInstance.Init()
+
+	plotterInstance = plotter.NewPlotter()
+	plotterInstance.Pen(1)
 
 	render.PlCfg.SetDrawContoursMode()
 	render.PlCfg.SetDrawSolidsMode()
@@ -377,49 +364,46 @@ func main() {
 	render.PlCfg.SetDrawOnlyRegionsMode()
 	render.PlCfg.SetDrawAllMode()
 
-	context := new(render.Render)
+	renderContext := new(render.Render)
 
 	render.Stat.CircleBresCounter = 0
 	render.Stat.LineBresCounter = 0
 	fmt.Println("Min. X, Y found:", minX, minY)
 	fmt.Println("Max. X, Y found:", maxX, maxY)
 
-	context.Init(plt)
-	context.SetMinXY(minX, minY)
+	renderContext.Init(plotterInstance)
+	renderContext.SetMinXY(minX, minY)
 
-	context.Img = image.NewNRGBA(image.Rect(context.LimitsX0, context.LimitsY0, context.LimitsX1, context.LimitsY1))
+	renderContext.Img = image.NewNRGBA(image.Rect(renderContext.LimitsX0, renderContext.LimitsY0, renderContext.LimitsX1, renderContext.LimitsY1))
 
 	//	k := 0
 	k := 1
-	for {
-		if k == len(arrayOfSteps) {
-			break
-		}
-		stepData := arrayOfSteps[k]
+	for k < len(arrayOfSteps) {
+		stepToDo := arrayOfSteps[k]
 
 		/* unwind step and repeat block(s)*/
-		if stepData.SRBlock != nil {
+		if stepToDo.SRBlock != nil {
 			// first time we've met sr
-			kstop := k + stepData.SRBlock.NSteps() // stop value
+			kStop := k + stepToDo.SRBlock.NSteps() // stop value
 
 			//			var srStep *gerbparser.State
-			fakeprev := new(gerbparser.XY)
-			fakeprev.SetX(0)
-			fakeprev.SetY(0)
-			modc := make([]gerbparser.State, stepData.SRBlock.NSteps()*stepData.SRBlock.NumX()*stepData.SRBlock.NumY())
-			ii := stepData.SRBlock.NumX()
-			jj := stepData.SRBlock.NumY()
+			fakePrev := new(gerbparser.XY)
+			fakePrev.SetX(0)
+			fakePrev.SetY(0)
+			modc := make([]gerbparser.State, stepToDo.SRBlock.NSteps() * stepToDo.SRBlock.NumX() * stepToDo.SRBlock.NumY())
+			ii := stepToDo.SRBlock.NumX()
+			jj := stepToDo.SRBlock.NumY()
 			modccnt := 0
 			var addX, addY float64
 			for j := 0; j < jj; j++ {
 				addY = float64(j) * arrayOfSteps[k].SRBlock.DY()
 				for i := 0; i < ii; i++ {
 					addX = float64(i) * arrayOfSteps[k].SRBlock.DX()
-					for kk := k; kk < kstop; kk++ {
+					for kk := k; kk < kStop; kk++ {
 						//						srStep = arrayOfSteps[kk]
 						if kk == k {
-							//							srStep.PrevCoord = fakeprev
-							modc[modccnt].PrevCoord = fakeprev
+							//							srStep.PrevCoord = fakePrev
+							modc[modccnt].PrevCoord = fakePrev
 						} else {
 							modc[modccnt].PrevCoord = modc[modccnt-1].Coord
 
@@ -439,31 +423,31 @@ func main() {
 						modc[modccnt].Coord.SetJ(arrayOfSteps[kk].Coord.GetJ())
 						//						srStep.Coord = modc[modccnt].Coord
 						//						modc[modccnt].Print()
-						context.StepProcessor(&modc[modccnt])
+						renderContext.StepProcessor(&modc[modccnt])
 						modccnt++
 					}
 				}
 			}
-			k = kstop
+			k = kStop
 			continue
 		}
 
-		if stepData.Action == gerbparser.OpcodeStop {
+		if stepToDo.Action == gerbparser.OpcodeStop {
 			break
 		}
 
-		context.StepProcessor(stepData)
+		renderContext.StepProcessor(stepToDo)
 		k++
 	}
 
 	fmt.Printf("%s%d%s", "The plotter have drawn ", render.Stat.LineBresCounter, " straight lines using Brezenham\n")
-	fmt.Printf("%s%.0f%s", "Total lenght of straight lines = ", render.Stat.LineBresLen*context.XRes, " mm\n")
+	fmt.Printf("%s%.0f%s", "Total lenght of straight lines = ", render.Stat.LineBresLen*renderContext.XRes, " mm\n")
 	fmt.Printf("%s%d%s", "The plotter have drawn ", render.Stat.CircleBresCounter, " circles\n")
-	fmt.Printf("%s%.0f%s", "Total lenght of circles = ", render.Stat.CircleLen*context.XRes, " mm\n")
+	fmt.Printf("%s%.0f%s", "Total lenght of circles = ", render.Stat.CircleLen*renderContext.XRes, " mm\n")
 	fmt.Println("The plotter have drawn", render.Stat.FilledRctCounter, "filled rectangles")
 	fmt.Println("The plotter have drawn", render.Stat.ObRoundCounter, "obrounds (boxes)")
 	fmt.Println("The plotter have moved pen", render.Stat.MovePenCounters, "times")
-	fmt.Printf("%s%.0f%s", "Total move distance = ", render.Stat.MovePenDistance*context.XRes, " mm\n")
+	fmt.Printf("%s%.0f%s", "Total move distance = ", render.Stat.MovePenDistance*renderContext.XRes, " mm\n")
 
 	// Save to out.png
 	f, _ := os.OpenFile("G:\\go_prj\\gerber2em7\\src\\out.png", os.O_WRONLY|os.O_CREATE, 0600)
@@ -471,9 +455,9 @@ func main() {
 
 	PrintMemUsage("Memory usage before  png encoding:")
 
-	png.Encode(f, context.Img)
+	png.Encode(f, renderContext.Img)
 
-	plt.Stop()
+	plotterInstance.Stop()
 }
 
 ////////////////////////////////////////////////////// end of main ///////////////////////////////////////////////////
@@ -657,7 +641,7 @@ func returnAppInfo(verbLevel int) string {
 // the function creates a full step sequence using src *[]string as source
 // src *[]string - pointer to the source string array
 // resSteps *[]*gerbparser.State - pointer to the resulting array of the steps, array size must be enough to hold all the staps
-// apertl *list.List - pointer to the global aperture list
+// aperturesList *list.List - pointer to the global aperture list
 // regl *list.List - pointer to the global regions list
 // fSpec *gerbparser.FormatSpec - pointer to the format specif. object
 // stepnum - number of the created steps started from 1
