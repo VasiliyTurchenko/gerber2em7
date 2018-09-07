@@ -64,7 +64,7 @@ func (storage *Storage) PeekPos() int {
 }
 
 func (storage *Storage) ToArray() []string {
-	retVal := make([]string,0)
+	retVal := make([]string, 0)
 	for i := range storage.strings {
 		retVal = append(retVal, storage.strings[i])
 	}

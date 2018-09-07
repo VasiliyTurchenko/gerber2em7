@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"configurator"
 	"container/list"
 	"errors"
 	"flag"
 	"fmt"
 	"gerbparser"
+	"github.com/spf13/viper"
 	"image"
 	"image/png"
 	"math"
@@ -29,17 +31,7 @@ const (
 	MinInt64 = int64(math.MinInt64)
 )
 
-// var ErrbadFS = errors.New("format is not specified or format string parsing error")
-
 var verboselevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
-
-//var infile = flag.String("i", "", "input file (with path)")
-//var outfile = flag.String("o", "", "output file (with path)")
-//var logfile = flag.String("l", "", "log file (with path)")
-
-//var totalStrings int = 0
-
-//var gerberStrings []string // all the strings
 
 var gerberStrings *stor.Storage
 
@@ -49,7 +41,7 @@ var aperture *gerbparser.Aperture
 var plotterInstance *plotter.Plotter
 
 var arrayOfSteps []*gerbparser.State // state machine
-//var SRBlocks []*gerbparser.SR        // SR blocks
+
 var regionsList *list.List   // regions
 var aperturesList *list.List // apertures
 var apertureBlocks map[string]*gerbparser.BlockAperture
@@ -57,46 +49,50 @@ var apertureBlocks map[string]*gerbparser.BlockAperture
 var maxX, maxY float64 = 0, 0
 var minX, minY = 1000000.0, 1000000.0
 
-//var s
+var viperConfig *viper.Viper
 
 func main() {
 
-	/*
-		viper.SetConfigName("config")     // no need to include file extension
-		viper.AddConfigPath(".")  // set the path of your config file
-
-		err := viper.ReadInConfig()
-		if err != nil {
-			panic(fmt.Errorf("Fatal error config file: %s \n", err))
-		} else {
-			fmt.Println(viper.GetString("parser.splittedfile"))
-
-		}
-
-
-	*/
-
-	flag.Parse()
-	fmt.Println(*verboselevel)
 	fmt.Println(returnAppInfo(*verboselevel))
-	/*
-		fmt.Println("Input inFile: " + *infile)
-		fmt.Println("Output inFile: " + *outfile)
-		fmt.Println("Log inFile: " + *logfile)
-	*/
+	viperConfig = viper.New()
+	configurator.SetDefaults(viperConfig)
+
+//	configurator.DiagnosticAllCfgPrint(viperConfig)
+
+	cfgFileError := configurator.ProcessConfigFile(viperConfig)
+	if cfgFileError != nil {
+		fmt.Print("An error has occured: ")
+		fmt.Println(cfgFileError)
+		fmt.Println("Using built-in defaults.\n")
+		configurator.SetDefaults(viperConfig)
+	}
+
+//	configurator.DiagnosticAllCfgPrint(viperConfig)
+
+	var sourceFileName string
+	flag.StringVar(&sourceFileName, "i", "", "input file")
+	flag.Parse()
+	if len(sourceFileName) == 0 {
+		fmt.Println("No input file specified.\nUsage:")
+		flag.PrintDefaults()
+		os.Exit(-1)
+	}
+
+	fmt.Println("input file:", sourceFileName, "\n")
+
 	/*
 	   Process input string
 	*/
-	PrintMemUsage("Memory usage before reading input file:")
+	printMemUsage("Memory usage before reading input file:")
 
 	//	gerberStrings = make([]string, 0)
 	gerberStrings = stor.NewStorage()
 
 	fSpec = new(gerbparser.FormatSpec)
 
-	inFile, err := os.Open("G:\\go_prj\\gerber2em7\\src\\test.g2") // For read access.
+	inFile, err := os.Open(sourceFileName) // For read access.
 	defer inFile.Close()
-	CheckError(err, -1) // read the file into the array of strings
+	checkError(err, -1) // read the file into the array of strings
 
 	scanner := bufio.NewScanner(inFile)
 	for scanner.Scan() {
@@ -116,10 +112,10 @@ func main() {
 
 	// search for format definition strings
 	mo, err := searchMO(gerberStrings)
-	CheckError(err, 300)
+	checkError(err, 300)
 
 	fs, err := searchFS(gerberStrings)
-	CheckError(err, 301)
+	checkError(err, 301)
 
 	fSpec = new(gerbparser.FormatSpec)
 	if fSpec.Init(fs, mo) == false {
@@ -139,7 +135,7 @@ func main() {
 
 	gerberStrings2 := stor.NewStorage()
 
-	PrintMemUsage("Memory usage before extracting apertures:")
+	printMemUsage("Memory usage before extracting apertures:")
 
 	// Aperture processing loop
 	gerberStrings.ResetPos()
@@ -196,7 +192,7 @@ func main() {
 			// possible aperture definition found
 			aperture = new(gerbparser.Aperture)
 			apErr := aperture.Init(gerberString[4:len(gerberString)-2], fSpec)
-			CheckError(apErr, 500)
+			checkError(apErr, 500)
 			aperturesList.PushBack(aperture) // store correct aperture
 			continue
 		}
@@ -225,72 +221,27 @@ func main() {
 	//  Aperture blocks must be converted to the steps w/o AB
 	//  S&R blocks and regions inside each instance of AB added to the global lists!
 	for ablock := range apertureBlocks {
-		bsn := CreateStepSequence(&apertureBlocks[ablock].APBodyPtr, &apertureBlocks[ablock].APStepsPtr, aperturesList, regionsList, fSpec)
+		bsn := createStepSequence(&apertureBlocks[ablock].APBodyPtr, &apertureBlocks[ablock].APStepsPtr, aperturesList, regionsList, fSpec)
 		apertureBlocks[ablock].APStepsPtr = apertureBlocks[ablock].APStepsPtr[:bsn]
 		//		apertureBlocks[ablock].Print()
 	}
 
 	fmt.Println()
-	PrintMemUsage("Memory usage before creating main step sequence:")
+	printMemUsage("Memory usage before creating main step sequence:")
 
 	// patch
 	// TODO get rid of the patch!
 
 	gerberStringsArray := gerberStrings.ToArray()
 
-	// func CreateStepSequence(src *[]string, resSteps *[]*gerbparser.State, aperturesList *list.List, regionsList *list.List, fSpec *gerbparser.FormatSpec) (stepnum int)
-	stepnum := CreateStepSequence(&gerberStringsArray, &arrayOfSteps, aperturesList, regionsList, fSpec)
-	/*
-	   /////
-	   // state machine current states
-	   	var stepnum = 1 // step number
-	   	var stepCompleted = true
-	   // create the root step with default properties
-	   	arrayOfSteps[0] = gerbparser.NewStep()
-	   	// process string by string
-	   	var step *gerbparser.State
-	   	for i, s := range gerberStrings {
-	   		if stepCompleted == true {
-	   			step = new(gerbparser.State)
-	   			*step = *arrayOfSteps[stepnum-1]
-	   			step.Coord = nil
-	   			step.PrevCoord = nil
-	   		}
-	   		//		fmt.Printf(">>>>>%v  %v\n", stepnum, arrayOfSteps[stepnum])
-	   		procres := step.CreateStep(&gerberStrings[i], arrayOfSteps[stepnum-1], aperturesList, regionsList, i, fSpec)
-	   		switch procres {
-	   		case gerbparser.SCResultNextString:
-	   			fallthrough
-	   		case gerbparser.SCResultSkipString:
-	   			stepCompleted = false
-	   			continue
-	   		case gerbparser.SCResultStepCmpltd:
-	   			step.PrevCoord = arrayOfSteps[stepnum-1].Coord
-	   			arrayOfSteps[stepnum] = step
-	   			stepnum++
-	   			stepCompleted = true
-	   			continue
-	   		case gerbparser.SCResultStop:
-	   			arrayOfSteps[stepnum] = step
-	   			step.Coord = arrayOfSteps[stepnum-1].Coord
-	   			stepnum++
-	   			stepCompleted = true
-	   			break
-	   		default:
-	   			break
-	   		}
-
-	   		fmt.Println("Still unknown command: ",s) // print unknown strings
-	   	} // end of input strings parsing
-	   ////
-	*/
+	stepnum := createStepSequence(&gerberStringsArray, &arrayOfSteps, aperturesList, regionsList, fSpec)
 	arrayOfSteps = arrayOfSteps[:stepnum]
 
 	fmt.Println("+++++++++++++++++ Unwinded steps ++++++++++++++++")
 	/* ------------------ aperture blocks to steps ---------------------------*/
 	// each D03 must be checked against aperture block
 
-	PrintMemUsage("Memory usage before unwinding aperture blocks:")
+	printMemUsage("Memory usage before unwinding aperture blocks:")
 
 	//	var touch bool = false
 	for {
@@ -335,21 +286,26 @@ func main() {
 			arrayOfSteps[i].Print()
 		}
 	*/
+
+
 	// print region info
-	j := 0
-	for k := regionsList.Front(); k != nil; k = k.Next() {
-		fmt.Printf("%+v\n", k.Value)
-		j++
-
+	if viperConfig.GetBool(configurator.CfgCommonPrintRegionsInfo) == true {
+		j := 0
+		for k := regionsList.Front(); k != nil; k = k.Next() {
+			fmt.Printf("%+v\n", k.Value)
+			j++
+		}
+		fmt.Println("Total", j, "regions found.")
 	}
-	fmt.Println("Total", j, "regions found.")
 
-	j = 0
-	for k := aperturesList.Front(); k != nil; k = k.Next() {
-		fmt.Printf("%+v\n", k.Value)
-		j++
+	if viperConfig.GetBool(configurator.CfgCommonPrintAperturesInfo) == true {
+		j := 0
+		for k := aperturesList.Front(); k != nil; k = k.Next() {
+			fmt.Printf("%+v\n", k.Value)
+			j++
+		}
+		fmt.Println("Total", j, "apertures found.")
 	}
-	fmt.Println("Total", j, "apertures found.")
 
 	fmt.Println("Total", len(arrayOfSteps)-1, "steps to do.")
 
@@ -369,13 +325,11 @@ func main() {
 		}
 	}
 
-	PrintMemUsage("Memory usage before rendering:")
+	printMemUsage("Memory usage before rendering:")
 
 	/*
 	   let's render the PCB
 	*/
-	//	plotterInstance = new(plotter.Plotter)
-	//	plotterInstance.Init()
 
 	plotterInstance = plotter.NewPlotter()
 	plotterInstance.Pen(1)
@@ -476,19 +430,16 @@ func main() {
 	f, _ := os.OpenFile("G:\\go_prj\\gerber2em7\\src\\out.png", os.O_WRONLY|os.O_CREATE, 0600)
 	defer f.Close()
 
-	PrintMemUsage("Memory usage before  png encoding:")
+	printMemUsage("Memory usage before  png encoding:")
 
 	png.Encode(f, renderContext.Img)
 
 	plotterInstance.Stop()
 }
 
+
 ////////////////////////////////////////////////////// end of main ///////////////////////////////////////////////////
 
-// close file
-func closeFile(f *os.File) {
-	f.Close()
-}
 
 // search for format strings
 func searchMO(storage *stor.Storage) (string, error) {
@@ -550,6 +501,10 @@ func abs(x int) int {
 */
 func saveIntermediate(storage *stor.Storage, fileName string) {
 
+	if viperConfig.GetBool(configurator.CfgParserSaveIntermediate) == false {
+		return
+	}
+
 	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		panic(err)
@@ -559,6 +514,7 @@ func saveIntermediate(storage *stor.Storage, fileName string) {
 	if err != nil {
 		panic(err)
 	}
+	storage.ResetPos()
 	for {
 		//	for i := range *buffer {
 		str := storage.String()
@@ -644,18 +600,18 @@ func squeezeString(inString string) string {
 	return inString
 }
 
-func CheckError(err error, exitcode int) {
+func checkError(err error, exitCode int) {
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(exitcode)
+		os.Exit(exitCode)
 	}
 }
 
 // this function returns application info
 func returnAppInfo(verbLevel int) string {
 	var header = "Gerber to EM-7052 translation tool\n"
-	var version = "Version 0.0.1\n"
-	var progDate = "15-May-2018\n"
+	var version = "Version 0.1.0\n"
+	var progDate = "07-Sep-2018\n"
 	var retVal = "\n"
 	switch verbLevel {
 	case 3:
@@ -678,7 +634,7 @@ func returnAppInfo(verbLevel int) string {
 // fSpec *gerbparser.FormatSpec - pointer to the format specif. object
 // stepnum - number of the created steps started from 1
 
-func CreateStepSequence(src *[]string, resSteps *[]*gerbparser.State, apertl *list.List, regl *list.List, fSpec *gerbparser.FormatSpec) (stepnum int) {
+func createStepSequence(src *[]string, resSteps *[]*gerbparser.State, apertl *list.List, regl *list.List, fSpec *gerbparser.FormatSpec) (stepnum int) {
 
 	stepnum = 1 // step number
 	stepCompleted := true
@@ -726,8 +682,13 @@ func CreateStepSequence(src *[]string, resSteps *[]*gerbparser.State, apertl *li
 }
 
 // PrintMemUsage outputs the current, total and OS memory being used. As well as the number
-// of garage collection cycles completed.
-func PrintMemUsage(header string) {
+// of garbage collection cycles completed.
+func printMemUsage(header string) {
+
+	if viperConfig.GetBool(configurator.CfgCommonPrintMemoryInfo) == false {
+		return
+	}
+
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
