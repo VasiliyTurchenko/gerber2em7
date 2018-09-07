@@ -96,5 +96,57 @@ func TestNewStorage(t *testing.T) {
 		}
 	}
 
+	// trying to empty
+	t.Log("trying to empty all the storages")
+	for i := range storageArray {
+		storageArray[i].Empty()
+	}
+	// try to read from empty
+	for i := range storageArray {
+		if strings.Compare("", storageArray[i].String()) != 0 {
+			t.Error("read beyond storage size returned non-empty string!")
+		}
+	}
 
+	// try to store strings again
+	t.Log("trying to store strings again")
+	for i := range storageArray {
+		for _, inString := range testArray {
+			storageArray[i].Accept(inString)
+		}
+		if storageArray[i].Len() != len(testArray) {
+			t.Error("storageArray[i].Len() != len(testArray)")
+		} else {
+			//			log.Println("PASSED: storageArray[i].Len() == len(testArray)")
+		}
+	}
+
+	for j := range testArray {
+		for i := range storageArray {
+			if strings.Compare(testArray[j], storageArray[i].String()) != 0 {
+				t.Error("testArray[j] not equal storageArray[i].String()")
+			}
+		}
+	}
+/*
+	t.Log("for loop test")
+	storageArray[0].ResetPos()
+	s := storageArray[0].String()
+	for len(s) > 0 {
+		t.Log(s)
+		s = storageArray[0].String()
+	}
+*/
+
+	t.Log("ToArray() test")
+
+	result := storageArray[0].ToArray()
+
+	storageArray[0].ResetPos()
+
+	result[0] = "Bla-Bla-Bla"
+
+	if strings.Compare(storageArray[0].String(), result[0]) == 0 {
+		t.Error("we need to copy deeper")
+	}
 }

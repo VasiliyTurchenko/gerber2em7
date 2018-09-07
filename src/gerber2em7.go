@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"plotter"
+	stor "strings_storage"
 
 	"render"
 	"runtime"
@@ -36,9 +37,11 @@ var verboselevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
 //var outfile = flag.String("o", "", "output file (with path)")
 //var logfile = flag.String("l", "", "log file (with path)")
 
-var totalStrings int = 0
+//var totalStrings int = 0
 
-var gerberStrings []string // all the strings
+//var gerberStrings []string // all the strings
+
+var gerberStrings *stor.Storage
 
 var fSpec *gerbparser.FormatSpec
 var aperture *gerbparser.Aperture
@@ -52,28 +55,28 @@ var aperturesList *list.List // apertures
 var apertureBlocks map[string]*gerbparser.BlockAperture
 
 var maxX, maxY float64 = 0, 0
-var minX, minY float64 = 1000000.0, 1000000.0
+var minX, minY = 1000000.0, 1000000.0
 
 //var s
 
 func main() {
 
-/*
-	viper.SetConfigName("config")     // no need to include file extension
-	viper.AddConfigPath(".")  // set the path of your config file
+	/*
+		viper.SetConfigName("config")     // no need to include file extension
+		viper.AddConfigPath(".")  // set the path of your config file
 
-	err := viper.ReadInConfig()
-	if err != nil {
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
-	} else {
-		fmt.Println(viper.GetString("parser.splittedfile"))
+		err := viper.ReadInConfig()
+		if err != nil {
+			panic(fmt.Errorf("Fatal error config file: %s \n", err))
+		} else {
+			fmt.Println(viper.GetString("parser.splittedfile"))
 
-	}
+		}
 
 
-*/
+	*/
 
-		flag.Parse()
+	flag.Parse()
 	fmt.Println(*verboselevel)
 	fmt.Println(returnAppInfo(*verboselevel))
 	/*
@@ -86,7 +89,9 @@ func main() {
 	*/
 	PrintMemUsage("Memory usage before reading input file:")
 
-	gerberStrings = make([]string, 0)
+	//	gerberStrings = make([]string, 0)
+	gerberStrings = stor.NewStorage()
+
 	fSpec = new(gerbparser.FormatSpec)
 
 	inFile, err := os.Open("G:\\go_prj\\gerber2em7\\src\\test.g2") // For read access.
@@ -95,24 +100,25 @@ func main() {
 
 	scanner := bufio.NewScanner(inFile)
 	for scanner.Scan() {
-		gerberStrings = append(gerberStrings, strings.ToUpper(scanner.Text()))
-		totalStrings++
+		var splittedString *[]string
+		//		gerberStrings = append(gerberStrings, strings.ToUpper(scanner.Text()))
+
+		rawString := strings.ToUpper(scanner.Text())
+		// split concatenated command strings AAAAAD01*BBBBBBD02*GNN*D03*etc
+		splittedString = splitString(rawString)
+		// feed the storage
+		for _, str := range *splittedString {
+			gerberStrings.Accept(squeezeString(str))
+		}
 	}
-
-	// // split concatenated command strings AAAAAD01*BBBBBBD02*GNN*D03*etc
-	gerberStrings = *splitStrings(&gerberStrings)
-
 	// save splitted strings to a file
-	saveIntermediate(&gerberStrings, "splitted.txt")
-
-	// remove comments and other non-nesessary strings
-	gerberStrings = *squeezeStrings(&gerberStrings)
+	saveIntermediate(gerberStrings, "splitted.txt")
 
 	// search for format definition strings
-	mo, err := searchMO()
+	mo, err := searchMO(gerberStrings)
 	CheckError(err, 300)
 
-	fs, err := searchFS()
+	fs, err := searchFS(gerberStrings)
 	CheckError(err, 301)
 
 	fSpec = new(gerbparser.FormatSpec)
@@ -129,12 +135,25 @@ func main() {
 	apertureBlocks = make(map[string]*gerbparser.BlockAperture)
 	apertureBlockOpened := make([]string, 0)
 
-	gerberStrings2 := make([]string, 0) // where to put strings to be source of the steps
+	//	gerberStrings2 := make([]string, 0) // where to put strings to be source of the steps
+
+	gerberStrings2 := stor.NewStorage()
 
 	PrintMemUsage("Memory usage before extracting apertures:")
 
 	// Aperture processing loop
-	for i, gerberString := range gerberStrings {
+	gerberStrings.ResetPos()
+	//	for i, gerberString := range gerberStrings {
+
+	for {
+		i := gerberStrings.PeekPos()
+		gerberString := gerberStrings.String()
+
+		if len(gerberString) == 0 {
+			break
+		}
+
+		//fmt.Println("i=", i)
 
 		// aperture blocks processing
 		if strings.Compare(gerberString, gerbparser.GerberApertureBlockDefEnd) == 0 {
@@ -158,15 +177,15 @@ func main() {
 			// aperture block found
 			apBlk := new(gerbparser.BlockAperture)
 			apBlk.StartStringNum = i
-			apBlk.Code, err = strconv.Atoi(gerberStrings[i][4 : len(gerberStrings[i])-2])
-			apertureBlocks[gerberStrings[i]] = apBlk
-			apertureBlockOpened = append(apertureBlockOpened, gerberStrings[i])
+			apBlk.Code, err = strconv.Atoi(gerberString[4 : len(gerberString)-2])
+			apertureBlocks[gerberString] = apBlk
+			apertureBlockOpened = append(apertureBlockOpened, gerberString)
 			continue
 		}
 
 		if len(apertureBlockOpened) != 0 {
 			last := len(apertureBlockOpened) - 1
-			apertureBlocks[apertureBlockOpened[last]].APBodyPtr = append(apertureBlocks[apertureBlockOpened[last]].APBodyPtr, gerberStrings[i])
+			apertureBlocks[apertureBlockOpened[last]].APBodyPtr = append(apertureBlocks[apertureBlockOpened[last]].APBodyPtr, gerberString)
 			continue
 		}
 		/*------------------ aperture blocks processing END ----------------- */
@@ -187,17 +206,17 @@ func main() {
 		// TODO
 
 		// all unprocessed above goes here
-		gerberStrings2 = append(gerberStrings2, gerberString)
+		gerberStrings2.Accept(gerberString)
 	}
 
 	// Global array of commands
 	gerberStrings = gerberStrings2
 	gerberStrings2 = nil
 
-	saveIntermediate(&gerberStrings, "before_steps.txt")
+	saveIntermediate(gerberStrings, "before_steps.txt")
 
 	// Main sequence of steps
-	arrayOfSteps = make([]*gerbparser.State, len(gerberStrings)+1)
+	arrayOfSteps = make([]*gerbparser.State, gerberStrings.Len()+1) //len(gerberStrings)+1)
 	// Global Step and Repeat blocks array
 	//	SRBlocks = make([]*gerbparser.SR, 0)
 	// Global list of Regions
@@ -214,8 +233,13 @@ func main() {
 	fmt.Println()
 	PrintMemUsage("Memory usage before creating main step sequence:")
 
+	// patch
+	// TODO get rid of the patch!
+
+	gerberStringsArray := gerberStrings.ToArray()
+
 	// func CreateStepSequence(src *[]string, resSteps *[]*gerbparser.State, aperturesList *list.List, regionsList *list.List, fSpec *gerbparser.FormatSpec) (stepnum int)
-	stepnum := CreateStepSequence(&gerberStrings, &arrayOfSteps, aperturesList, regionsList, fSpec)
+	stepnum := CreateStepSequence(&gerberStringsArray, &arrayOfSteps, aperturesList, regionsList, fSpec)
 	/*
 	   /////
 	   // state machine current states
@@ -350,8 +374,8 @@ func main() {
 	/*
 	   let's render the PCB
 	*/
-//	plotterInstance = new(plotter.Plotter)
-//	plotterInstance.Init()
+	//	plotterInstance = new(plotter.Plotter)
+	//	plotterInstance.Init()
 
 	plotterInstance = plotter.NewPlotter()
 	plotterInstance.Pen(1)
@@ -389,7 +413,7 @@ func main() {
 			fakePrev := new(gerbparser.XY)
 			fakePrev.SetX(0)
 			fakePrev.SetY(0)
-			modc := make([]gerbparser.State, stepToDo.SRBlock.NSteps() * stepToDo.SRBlock.NumX() * stepToDo.SRBlock.NumY())
+			modc := make([]gerbparser.State, stepToDo.SRBlock.NSteps()*stepToDo.SRBlock.NumX()*stepToDo.SRBlock.NumY())
 			ii := stepToDo.SRBlock.NumX()
 			jj := stepToDo.SRBlock.NumY()
 			modccnt := 0
@@ -467,9 +491,13 @@ func closeFile(f *os.File) {
 }
 
 // search for format strings
-func searchMO() (string, error) {
+func searchMO(storage *stor.Storage) (string, error) {
 	err := errors.New("unit of measurements command not found")
-	for _, s := range gerberStrings {
+	storage.ResetPos()
+	//	for _, s := range gerberStrings {
+	s := storage.String()
+	for len(s) > 0 {
+
 		if strings.HasPrefix(s, gerbparser.GerberMOIN) || strings.HasPrefix(s, gerbparser.GerberMOMM) {
 			return s, nil
 		}
@@ -479,12 +507,18 @@ func searchMO() (string, error) {
 		if strings.Compare(s, "G71*") == 0 {
 			return gerbparser.GerberMOMM, nil
 		}
+		s = storage.String()
 	}
 	return "", err
 }
 
-func searchFS() (string, error) {
-	for _, s := range gerberStrings {
+func searchFS(storage *stor.Storage) (string, error) {
+
+	storage.ResetPos()
+	//	for _, s := range gerberStrings {
+
+	s := storage.String()
+	for len(s) > 0 {
 		if strings.HasPrefix(s, "%FST") {
 			return s, errors.New("trailing zero omission format is not supported") // + 09-Jun-2018
 		}
@@ -494,7 +528,7 @@ func searchFS() (string, error) {
 		if strings.HasPrefix(s, gerbparser.GerberFormatSpec) {
 			return s, nil
 		}
-
+		s = storage.String()
 	}
 	return "", errors.New("_FS_ command not found")
 }
@@ -512,9 +546,9 @@ func abs(x int) int {
 */
 
 /*
-	Saves intermediate results placed in the strings array to the file
- */
-func saveIntermediate(buffer *[]string, fileName string) {
+	Saves intermediate results from the strings storage to the file
+*/
+func saveIntermediate(storage *stor.Storage, fileName string) {
 
 	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
@@ -525,8 +559,14 @@ func saveIntermediate(buffer *[]string, fileName string) {
 	if err != nil {
 		panic(err)
 	}
-	for i := range *buffer {
-		_, err = file.WriteString((*buffer)[i] + "\n")
+	for {
+		//	for i := range *buffer {
+		str := storage.String()
+		if len(str) == 0 {
+			storage.ResetPos()
+			break
+		}
+		_, err = file.WriteString(str + "\n")
 		if err != nil {
 			panic(err)
 		}
@@ -538,77 +578,70 @@ func saveIntermediate(buffer *[]string, fileName string) {
 	}
 }
 
-
-func splitStrings(a *[]string) *[]string {
-	// split concatenated command strings AAAAAD01*BBBBBBD02*GNN*D03*etc
-	splitted := make([]string, 0)
-	for i := range *a {
-		if (strings.HasPrefix((*a)[i], "%") && strings.HasSuffix((*a)[i], "%")) ||
-			strings.HasPrefix((*a)[i], "G04") {
-			// do not split
-			splitted = append(splitted, (*a)[i])
-		} else {
-			for _, tspl := range strings.SplitAfter((*a)[i], "*") {
-				if len(tspl) > 0 {
-					for {
-						n := strings.IndexByte(tspl, 'G')
-						if n == -1 {
-							splitted = append(splitted, tspl)
-							break
-						} else {
-							splitted = append(splitted, tspl[n:n+3]+"*")
-							tspl = tspl[n+3:]
-						}
+func splitString(rawString string) *[]string {
+	// split concatenated command string AAAAAD01*BBBBBBD02*GNN*D03*etc
+	splittedStrings := make([]string, 0)
+	if (strings.HasPrefix(rawString, "%") && strings.HasSuffix(rawString, "%")) ||
+		strings.HasPrefix(rawString, "G04") {
+		// do not split
+		splittedStrings = append(splittedStrings, rawString)
+	} else {
+		for _, tmpSplitted := range strings.SplitAfter(rawString, "*") {
+			if len(tmpSplitted) > 0 {
+				for {
+					n := strings.IndexByte(tmpSplitted, 'G')
+					if n == -1 {
+						splittedStrings = append(splittedStrings, tmpSplitted)
+						break
+					} else {
+						splittedStrings = append(splittedStrings, tmpSplitted[n:n+3]+"*")
+						tmpSplitted = tmpSplitted[n+3:]
 					}
 				}
 			}
 		}
 	}
-	return &splitted
+	return &splittedStrings
 }
 
-func squeezeStrings(a *[]string) *[]string {
+func squeezeString(inString string) string {
 	// remove comments and other un-nesessary strings
 	// obsolete commands
 	// attributes - TODO MAKE USE!!!!
-	squeezed := make([]string, 0)
-	for i := range *a {
-		// strip comments
-		if strings.HasPrefix((*a)[i], "G04") || strings.HasPrefix((*a)[i], "G4") { // +09-Jun-2018
-			fmt.Println("Comment", (*a)[i], " is found at line", i)
-			continue
-		}
-		// strip some obsolete commands
-		if strings.HasPrefix((*a)[i], "%AS") ||
-			strings.HasPrefix((*a)[i], "%IR") ||
-			strings.HasPrefix((*a)[i], "%MI") ||
-			strings.HasPrefix((*a)[i], "%OF") ||
-			strings.HasPrefix((*a)[i], "%SF") ||
-			strings.HasPrefix((*a)[i], "%IN") ||
-			strings.HasPrefix((*a)[i], "%LN") {
-			fmt.Println("Obsolete command", (*a)[i], " is found at line", i)
-			continue
-		}
-		if strings.Compare((*a)[i], "%SRX1Y1I0J0*%") == 0 { //  +09-Jun-2018
-			continue
-		}
-		// strip attributes - TODO!!!!!
-		if strings.HasPrefix((*a)[i], "%TF") ||
-			strings.HasPrefix((*a)[i], "%TA") ||
-			strings.HasPrefix((*a)[i], "%TO") ||
-			strings.HasPrefix((*a)[i], "%TD") {
-			fmt.Println("Attribute", (*a)[i], " is found at line", i)
-			continue
-		}
-		if strings.Compare((*a)[i], "*") == 0 {
-			continue
-		}
-		if strings.Compare((*a)[i], "G54*") == 0 {
-			continue
-		}
-		squeezed = append(squeezed, (*a)[i])
+	// strip comments
+	if strings.HasPrefix(inString, "G04") || strings.HasPrefix(inString, "G4") { // +09-Jun-2018
+		fmt.Println("Comment", inString, " is found")
+		return ""
 	}
-	return &squeezed
+	// strip some obsolete commands
+	if strings.HasPrefix(inString, "%AS") ||
+		strings.HasPrefix(inString, "%IR") ||
+		strings.HasPrefix(inString, "%MI") ||
+		strings.HasPrefix(inString, "%OF") ||
+		strings.HasPrefix(inString, "%SF") ||
+		strings.HasPrefix(inString, "%IN") ||
+		strings.HasPrefix(inString, "%LN") {
+		fmt.Println("Obsolete command", inString, " is found")
+		return ""
+	}
+	if strings.Compare(inString, "%SRX1Y1I0J0*%") == 0 { //  +09-Jun-2018
+		return ""
+	}
+	// strip attributes - TODO!!!!!
+	if strings.HasPrefix(inString, "%TF") ||
+		strings.HasPrefix(inString, "%TA") ||
+		strings.HasPrefix(inString, "%TO") ||
+		strings.HasPrefix(inString, "%TD") {
+		fmt.Println("Attribute", inString, " is found")
+		return ""
+	}
+	if strings.Compare(inString, "*") == 0 {
+		return ""
+	}
+	if strings.Compare(inString, "G54*") == 0 {
+		return ""
+	}
+	return inString
 }
 
 func CheckError(err error, exitcode int) {

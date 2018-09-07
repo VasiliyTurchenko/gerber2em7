@@ -39,9 +39,12 @@ func (storage *Storage) String() string {
 	return (*storage).strings[index]
 }
 
+// empty strings are discarded
 func (storage *Storage) Accept(s string) {
-	(*storage).strings = append((*storage).strings, s)
+	if len(s) > 0 {
+		(*storage).strings = append((*storage).strings, s)
 	}
+}
 
 func (storage *Storage) Len() int {
 	return len((*storage).strings)
@@ -51,3 +54,19 @@ func (storage *Storage) ResetPos() {
 	(*storage).index = 0
 }
 
+func (storage *Storage) Empty() {
+	(*storage).index = 0
+	(*storage).strings = (*storage).strings[:0]
+}
+
+func (storage *Storage) PeekPos() int {
+	return (*storage).index
+}
+
+func (storage *Storage) ToArray() []string {
+	retVal := make([]string,0)
+	for i := range storage.strings {
+		retVal = append(retVal, storage.strings[i])
+	}
+	return retVal
+}
