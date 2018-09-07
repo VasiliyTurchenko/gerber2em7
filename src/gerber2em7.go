@@ -28,7 +28,7 @@ const (
 	MinInt64 = int64(math.MinInt64)
 )
 
-var ErrbadFS = errors.New("format is not specified or format string parsing error")
+// var ErrbadFS = errors.New("format is not specified or format string parsing error")
 
 var verboselevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
 
@@ -37,20 +37,17 @@ var verboselevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
 //var logfile = flag.String("l", "", "log file (with path)")
 
 var totalStrings int = 0
-var gerberStrings []string // all the strings
 
-//var xy *gerbparser.XY // first coordinates record
+var gerberStrings []string // all the strings
 
 var fSpec *gerbparser.FormatSpec
 var aperture *gerbparser.Aperture
-
-//var creg *gerbparser.Region
 
 var plotterInstance *plotter.Plotter
 
 var arrayOfSteps []*gerbparser.State // state machine
 //var SRBlocks []*gerbparser.SR        // SR blocks
-var regl *list.List          // regions
+var regionsList *list.List   // regions
 var aperturesList *list.List // apertures
 var apertureBlocks map[string]*gerbparser.BlockAperture
 
@@ -93,13 +90,15 @@ func main() {
 	fSpec = new(gerbparser.FormatSpec)
 
 	inFile, err := os.Open("G:\\go_prj\\gerber2em7\\src\\test.g2") // For read access.
-	defer closeFile(inFile)
+	defer inFile.Close()
 	CheckError(err, -1) // read the file into the array of strings
+
 	scanner := bufio.NewScanner(inFile)
 	for scanner.Scan() {
 		gerberStrings = append(gerberStrings, strings.ToUpper(scanner.Text()))
 		totalStrings++
 	}
+
 	// // split concatenated command strings AAAAAD01*BBBBBBD02*GNN*D03*etc
 	gerberStrings = *splitStrings(&gerberStrings)
 
@@ -202,12 +201,12 @@ func main() {
 	// Global Step and Repeat blocks array
 	//	SRBlocks = make([]*gerbparser.SR, 0)
 	// Global list of Regions
-	regl = list.New()
+	regionsList = list.New()
 
 	//  Aperture blocks must be converted to the steps w/o AB
 	//  S&R blocks and regions inside each instance of AB added to the global lists!
 	for ablock := range apertureBlocks {
-		bsn := CreateStepSequence(&apertureBlocks[ablock].APBodyPtr, &apertureBlocks[ablock].APStepsPtr, aperturesList, regl, fSpec)
+		bsn := CreateStepSequence(&apertureBlocks[ablock].APBodyPtr, &apertureBlocks[ablock].APStepsPtr, aperturesList, regionsList, fSpec)
 		apertureBlocks[ablock].APStepsPtr = apertureBlocks[ablock].APStepsPtr[:bsn]
 		//		apertureBlocks[ablock].Print()
 	}
@@ -215,8 +214,8 @@ func main() {
 	fmt.Println()
 	PrintMemUsage("Memory usage before creating main step sequence:")
 
-	// func CreateStepSequence(src *[]string, resSteps *[]*gerbparser.State, aperturesList *list.List, regl *list.List, fSpec *gerbparser.FormatSpec) (stepnum int)
-	stepnum := CreateStepSequence(&gerberStrings, &arrayOfSteps, aperturesList, regl, fSpec)
+	// func CreateStepSequence(src *[]string, resSteps *[]*gerbparser.State, aperturesList *list.List, regionsList *list.List, fSpec *gerbparser.FormatSpec) (stepnum int)
+	stepnum := CreateStepSequence(&gerberStrings, &arrayOfSteps, aperturesList, regionsList, fSpec)
 	/*
 	   /////
 	   // state machine current states
@@ -234,7 +233,7 @@ func main() {
 	   			step.PrevCoord = nil
 	   		}
 	   		//		fmt.Printf(">>>>>%v  %v\n", stepnum, arrayOfSteps[stepnum])
-	   		procres := step.CreateStep(&gerberStrings[i], arrayOfSteps[stepnum-1], aperturesList, regl, i, fSpec)
+	   		procres := step.CreateStep(&gerberStrings[i], arrayOfSteps[stepnum-1], aperturesList, regionsList, i, fSpec)
 	   		switch procres {
 	   		case gerbparser.SCResultNextString:
 	   			fallthrough
@@ -314,7 +313,7 @@ func main() {
 	*/
 	// print region info
 	j := 0
-	for k := regl.Front(); k != nil; k = k.Next() {
+	for k := regionsList.Front(); k != nil; k = k.Next() {
 		fmt.Printf("%+v\n", k.Value)
 		j++
 
@@ -642,7 +641,7 @@ func returnAppInfo(verbLevel int) string {
 // src *[]string - pointer to the source string array
 // resSteps *[]*gerbparser.State - pointer to the resulting array of the steps, array size must be enough to hold all the staps
 // aperturesList *list.List - pointer to the global aperture list
-// regl *list.List - pointer to the global regions list
+// regionsList *list.List - pointer to the global regions list
 // fSpec *gerbparser.FormatSpec - pointer to the format specif. object
 // stepnum - number of the created steps started from 1
 
