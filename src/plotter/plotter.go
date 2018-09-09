@@ -21,6 +21,7 @@ type Plotter struct {
 	moveCmds        int
 	currentPosX     int
 	currentPosY     int
+	outFileName		string
 	outputFile      *os.File
 	err             error
 	outStringBuffer []string
@@ -33,7 +34,7 @@ func NewPlotter() *Plotter {
 }
 
 /*
-	Initializes Plotter object and genetrates plotter reset command
+	Initializes Plotter object and generates plotter reset command
 */
 func (plotter *Plotter) Init() string {
 	plotter.currentPosX = 0
@@ -44,6 +45,9 @@ func (plotter *Plotter) Init() string {
 	return retVal
 }
 
+func (plotter *Plotter) SetOutFileName(outFileName string) {
+	plotter.outFileName = outFileName
+}
 /*
 	Deletes unnecessary MA commands
  */
@@ -68,10 +72,10 @@ func (plotter *Plotter) squeeze() {
 	Finalizes command stream and writes file to disk
  */
 func (plotter *Plotter) Stop() {
-	_ = plotter.Pen(0)
+	_ = plotter.TakePen(0)
 	_ = plotter.MoveTo(0, 0)
 	plotter.squeeze()
-	plotter.outputFile, plotter.err = os.OpenFile("G:\\go_prj\\gerber2em7\\src\\out.plotter", os.O_WRONLY|os.O_CREATE, 0600)
+	plotter.outputFile, plotter.err = os.OpenFile(plotter.outFileName, os.O_WRONLY|os.O_CREATE, 0600)
 	if plotter.err != nil {
 		panic(plotter.err)
 	}
@@ -153,7 +157,7 @@ func (plotter *Plotter) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm gerbparser
 
 }
 
-func (plotter *Plotter) Pen(penNumber int) string {
+func (plotter *Plotter) TakePen(penNumber int) string {
 	if penNumber < 0 || penNumber > 4 {
 		panic("Bad pen number specified!")
 	}

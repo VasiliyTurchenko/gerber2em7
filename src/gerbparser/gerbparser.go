@@ -13,52 +13,11 @@ import (
 	"os"
 )
 
-const GerberComment string = "G04"
-const GerberEOF string = "M02"
 const GerberFormatSpec string = "%FSLA"
 const GerberMOIN string = "%MOIN*%"
 const GerberMOMM string = "%MOMM*%"
 
 const InchesToMM float64 = 25.4
-
-var GerberCommands = []string{
-	"%FS", // Format specification. Sets the coordinate format, e.g. the number of decimals. 4.1
-	"%MO", // Mode. Sets the unit to inch or mm. 4.2
-	"%AD", // Aperture define. Defines a template based aperture and assigns a D code to it. 4.3
-	"%AM", // Aperture macro. Defines a macro aperture template. 4.5
-	"%AB", // Aperture block. Defines a block aperture and assigns a D-code to it. 4.6
-	"D01", /* Interpolate operation. Outside a region statement D01 creates a draw or arc
-	object using the current aperture. Inside it creates a linear or circular contour
-	segment. After the D01 command the current point is moved to draw/arc end
-	point.4.8 */
-	"D02", /* Move operation. D02 does not create a graphics object but moves the current
-	point to the coordinate in the D02 command. 4.8 */
-	"D03", /* Flash operation. Creates a flash object with the current aperture. After the D03
-	command the current point is moved to the flash point. 	4.8 */
-	"D",   // Dnn (nn≥10) Sets the current aperture to D code nn. 4.7
-	"G01", // Sets the interpolation mode to linear. 4.9
-	"G02", // Sets the interpolation mode to clockwise circular. 4.10
-	"G03", // Sets the interpolation mode to counterclockwise circular. 4.10
-	"G74", // Sets quadrant mode to single quadrant. 4.10
-	"G75", // Sets quadrant mode to multi quadrant. 4.10
-	"%LP", // Load polarity. Loads the polarity object transformation parameter. 4.11.2
-	"%LM", // Load mirror. Loads the mirror object transformation parameter. 4.11.3
-	"%LR", // Load rotation. Loads the rotation object transformation parameter. 4.11.4
-	"%LS", // Load scale. Loads the scale object transformation parameter. 4.11.5
-	"G36", // Starts a region statement. This creates a region by defining its contour. 4.12.
-	"G37", // Ends the region statement. 4.12
-	"%SR", // Step and repeat. Open or closes a step and repeat statement. 4.13
-	"G04", // Comment. 4.14
-	"%TF", // Attribute file. Set a file attribute. 5.2
-	"%TA", // Attribute aperture. Add an aperture attribute to the dictionary or modify it. 5.3
-	"%TO", // Attribute object. Add an object attribute to the dictionary or modify it. 5.4
-	"%TD", // Attribute delete. Delete one or all attributes in the dictionary. 5.5
-	"M02", // End of file. 4.15
-}
-
-// End of line and end of block
-//const GerberEOL string = "*"
-const GerberEOB string = "*"
 
 // Function checks against non-number characters in the string
 func isNumString(ins string) bool {
@@ -77,13 +36,13 @@ func isNumString(ins string) bool {
 
 // Format specification object
 type FormatSpec struct {
-	Head  string
-	MUstr string
-	XI    int // digits in the integer part
-	XD    int // digits in the fractional part
-	YI    int
-	YD    int
-	MU    float64
+	Head     string
+	MUString string
+	XI       int // digits in the integer part
+	XD       int // digits in the fractional part
+	YI       int
+	YD       int
+	MU       float64
 }
 
 // false - unable to parse format string
@@ -96,7 +55,7 @@ func (fs *FormatSpec) Init(ins, mu string) bool {
 	fs.YI = 0
 	fs.YD = 0
 	fs.Head = strings.ToUpper(ins)
-	fs.MUstr = strings.ToUpper(mu)
+	fs.MUString = strings.ToUpper(mu)
 
 	var tmpxi, tmpxd, tmpyi, tmpyd int // temporary values
 	var Xpos, Ypos, suffpos int        // delimiters postions
@@ -265,6 +224,13 @@ type XY struct {
 	// offsets
 	i axisPoint
 	j axisPoint
+}
+
+func NewXY() *XY {
+	retval := new(XY)
+	retval.SetX(0)
+	retval.SetY(0)
+	return retval
 }
 
 func (xy *XY) Print() {
@@ -439,33 +405,19 @@ L1:
 /*####################  regions ##################################
  */
 type Region struct {
-	//	prev    *Region
-	//	next    *Region
-	//	apType  *Aperture
 	startXY         *XY // pointer to start entry
 	numberOfXY      int // number of entries
 	G36StringNumber int // number of the string with G36 cmd
 	G37StringNumber int // number of the string with G37 cmd
-	//	numSegments int // number of closed segments
 }
 
-// initialises a region object
-func (region *Region) Init( /* pr *Region, */ strnum int /*apert *Aperture*/) error {
-	if region == nil {
-		return errors.New("can not create the contour referenced by null pointer")
-	}
-	/*	if pr == nil {
-			region.prev = region
-		} else {
-			pr.next = region // not the first element
-			region.prev = pr
-		}
-	*/
-	region.G36StringNumber = strnum
-	//	region.apType = apert
-	region.numberOfXY = 0
-	region.G37StringNumber = -1
-	return nil
+// creates and initialises a region object
+func NewRegion(strNum int) *Region {
+	retVal := new(Region)
+	retVal.G36StringNumber = strNum
+	retVal.numberOfXY = 0
+	retVal.G37StringNumber = -1
+	return retVal
 }
 
 // closes the region
@@ -514,56 +466,56 @@ func (region *Region) RegionOpened() (bool, error) {
 /*
 ############################## step and repeat blocks #################################
 */
-type SR struct {
+type SRBlock struct {
 	srString string
 	startXY  *XY
 	numX     int
 	numY     int
 	dX       float64
 	dY       float64
-	nSteps   int // number of steps in the SR block
+	nSteps   int // number of steps in the SRBlock block
 }
 
-func (srblock *SR) NumX() int {
+func (srblock *SRBlock) NumX() int {
 	return srblock.numX
 }
 
-func (srblock *SR) NumY() int {
+func (srblock *SRBlock) NumY() int {
 	return srblock.numY
 }
 
-func (srblock *SR) DX() float64 {
+func (srblock *SRBlock) DX() float64 {
 	return srblock.dX
 }
 
-func (srblock *SR) DY() float64 {
+func (srblock *SRBlock) DY() float64 {
 	return srblock.dY
 }
 
-func (srblock *SR) NSteps() int {
+func (srblock *SRBlock) NSteps() int {
 	return srblock.nSteps
 }
 
-func (srblock *SR) IncNSteps() {
+func (srblock *SRBlock) IncNSteps() {
 	srblock.nSteps++
 }
 
-func (srblock *SR) Init(ins string, fs *FormatSpec) error {
+func (srblock *SRBlock) Init(ins string, fs *FormatSpec) error {
 	ins = strings.TrimSpace(ins)
 	res, err := ExtractLetterDelimitedFloats(ins, "XYIJ")
 	if err != nil {
 		return err
 	}
 	if len(res) != 4 {
-		return errors.New("SR.Init: missing SR parameter(s)")
+		return errors.New("SRBlock.Init: missing one or some SRBlock parameter(s)")
 	}
 	srblock.numX = int(res['X'])
 	if srblock.numX < 1 {
-		return errors.New("SR.Init: X count < 1")
+		return errors.New("SRBlock.Init: X count < 1")
 	}
 	srblock.numY = int(res['Y'])
 	if srblock.numY < 1 {
-		return errors.New("SR.Init: Y count < 1")
+		return errors.New("SRBlock.Init: Y count < 1")
 	}
 	srblock.dX = res['I'] * fs.ReadMU() // take into account inches or millimeters
 	srblock.dY = res['J'] * fs.ReadMU()
@@ -571,11 +523,11 @@ func (srblock *SR) Init(ins string, fs *FormatSpec) error {
 	return nil
 }
 
-func (srblock *SR) StartXY() *XY {
+func (srblock *SRBlock) StartXY() *XY {
 	return srblock.startXY
 }
 
-func (srblock *SR) SetStartXY(v *XY) {
+func (srblock *SRBlock) SetStartXY(v *XY) {
 	srblock.startXY = v
 }
 
@@ -668,23 +620,21 @@ type Aperture struct {
 type BlockAperture struct {
 	StartStringNum int
 	Code           int
-	APBodyPtr  []string
-	APStepsPtr []*State
+	BodyStrings    []string
+	StepsPtr       []*State
 }
 
 func (ba *BlockAperture) Print() {
 	fmt.Println("\n***** Block aperture *****")
 	fmt.Println("\tBlock aperture code:", ba.Code)
 	fmt.Println("\tSource strings:")
-	for b := range ba.APBodyPtr {
-		fmt.Println("\t\t", b, "  ", ba.APBodyPtr[b])
+	for b := range ba.BodyStrings {
+		fmt.Println("\t\t", b, "  ", ba.BodyStrings[b])
 	}
 	fmt.Println("\tResulting steps:")
-	for b := range ba.APStepsPtr {
-		//		fmt.Printf("\t\t%d%s%v\n", b, "  ", ba.APStepsPtr[b])
-		ba.APStepsPtr[b].Print()
+	for b := range ba.StepsPtr {
+		ba.StepsPtr[b].Print()
 	}
-
 }
 
 /*
@@ -713,8 +663,6 @@ func (apert *Aperture) GetCode() int {
 }
 
 func (apert *Aperture) Init(sourceString string, fs *FormatSpec) error {
-	//	var result error = nil
-	//	sourceString = strings.ToUpper(sourceString)
 	sourceString = strings.TrimSpace(sourceString)
 	var err error = nil
 	apert.SourceString = sourceString
@@ -870,7 +818,7 @@ type State struct {
 	Coord       *XY
 	Action      Acttype
 	Region      *Region
-	SRBlock     *SR
+	SRBlock     *SRBlock
 	OriginForAB *XY // origin for aperture block insertion
 }
 
@@ -905,94 +853,112 @@ func (step *State) Print() {
 // creates and intializes step object with default values
 func NewStep() *State {
 	step := new(State)
-	xy := new(XY)
-	xy.SetX(0)
-	xy.SetY(0)
-	step.Coord = xy
+	step.Coord = NewXY()
 	step.Polarity = PoltypeDark
 	step.IpMode = IPModeLinear
 	return step
 }
 
+func (step *State) CopyOfWithOffset(another *State, addX float64, addY float64) {
+	step.Action = another.Action
+	step.Region = another.Region
+	step.SRBlock = another.SRBlock
+	step.IpMode = another.IpMode
+	step.QMode = another.QMode
+	step.CurrentAp = another.CurrentAp
+	step.Polarity = another.Polarity
+	step.StepNumber = another.StepNumber
+	step.Coord = new(XY)
+	step.Coord.SetX(another.Coord.GetX() + addX)
+	step.Coord.SetY(another.Coord.GetY() + addY)
+	step.Coord.SetI(another.Coord.GetI())
+	step.Coord.SetJ(another.Coord.GetJ())
+}
+
+
+
 type GerberStringProcessingResult int
 
 const (
-	SCResultNextString GerberStringProcessingResult = iota + 1 // need next string to complete step
-	SCResultSkipString                                         // string was skipped
-	SCResultStepCmpltd                                         // step creation completed
+	SCResultNextString    GerberStringProcessingResult = iota + 1 // need next string to complete step
+	SCResultSkipString                                            // string was skipped
+	SCResultStepCompleted                                         // step creation completed
 	SCResultStop
 )
 
-func (step *State) CreateStep(ins *string, prevstep *State, apertl *list.List, regl *list.List, i int, fSpec *FormatSpec) GerberStringProcessingResult {
+func (step *State) CreateStep(
+	inString *string,
+	prevStep *State,
+	apertList *list.List,
+	regionsList *list.List,
+	i int,
+	fSpec *FormatSpec) GerberStringProcessingResult {
 
 	// sequentally fill all the fields
 	// after opcode string finalize the step
-	if strings.Compare(*ins, "G01*") == 0 || strings.Compare(*ins, "G1*") == 0 { // +09-Jun-2018
+	if strings.Compare(*inString, "G01*") == 0 || strings.Compare(*inString, "G1*") == 0 { // +09-Jun-2018
 		step.IpMode = IPModeLinear
 		return SCResultNextString
 	}
-	if strings.Compare(*ins, "G02*") == 0 || strings.Compare(*ins, "G2*") == 0 { // +09-Jun-2018
+	if strings.Compare(*inString, "G02*") == 0 || strings.Compare(*inString, "G2*") == 0 { // +09-Jun-2018
 		step.IpMode = IPModeCwC
 		return SCResultNextString
 	}
-	if strings.Compare(*ins, "G03*") == 0 || strings.Compare(*ins, "G3*") == 0 { // +09-Jun-2018
+	if strings.Compare(*inString, "G03*") == 0 || strings.Compare(*inString, "G3*") == 0 { // +09-Jun-2018
 		step.IpMode = IPModeCCwC
 		return SCResultNextString
 	}
-	if strings.Compare(*ins, "%LPC*%") == 0 {
+	if strings.Compare(*inString, "%LPC*%") == 0 {
 		step.Polarity = PoltypeClear
 		return SCResultNextString
 	}
-	if strings.Compare(*ins, "%LPD*%") == 0 {
+	if strings.Compare(*inString, "%LPD*%") == 0 {
 		step.Polarity = PoltypeDark
 		return SCResultNextString
 	}
-	if strings.Compare(*ins, "G74*") == 0 {
+	if strings.Compare(*inString, "G74*") == 0 {
 		step.QMode = QuadmodeSingle
 		return SCResultNextString
 	}
-	if strings.Compare(*ins, "G75*") == 0 {
+	if strings.Compare(*inString, "G75*") == 0 {
 		step.QMode = QuadmodeMulti
 		return SCResultNextString
 	}
-	if strings.Compare("G37*", *ins) == 0 {
+	if strings.Compare("G37*", *inString) == 0 {
 		// G37 command is found
-		regionOPenedState, err := step.Region.RegionOpened()
+		regionOpenedState, err := step.Region.RegionOpened()
 		CheckError(err, 401)
-		if regionOPenedState == true { // creg is opened
+		if regionOpenedState == true { // creg is opened
 			err = step.Region.Close(i)
 			CheckError(err, 402)
 			step.Region = nil
 		}
-		//		rgn = nil
 		return SCResultNextString
 	}
 	//
-	if strings.Compare("G36*", *ins) == 0 {
-		creg := new(Region)
-		err := creg.Init(i)
-		CheckError(err, 400)
-		regl.PushBack(creg)
+	if strings.Compare("G36*", *inString) == 0 {
+		creg := NewRegion(i)
+		regionsList.PushBack(creg)
 		step.Region = creg
 		// add coordinates as usual, close creg at G37 command
 		return SCResultNextString
 	}
 	switch {
-	case strings.HasSuffix(*ins, "D01*"):
+	case strings.HasSuffix(*inString, "D01*"):
 		step.Action = OpcodeD01
-	case strings.HasSuffix(*ins, "D02*"):
+	case strings.HasSuffix(*inString, "D02*"):
 		step.Action = OpcodeD02
-	case strings.HasSuffix(*ins, "D03*"):
+	case strings.HasSuffix(*inString, "D03*"):
 		step.Action = OpcodeD03
 	}
 	if strings.HasSuffix(
-		*ins, "D01*") || strings.HasSuffix(
-		*ins, "D02*") || strings.HasSuffix(
-		*ins, "D03*") {
+		*inString, "D01*") || strings.HasSuffix(
+		*inString, "D02*") || strings.HasSuffix(
+		*inString, "D03*") {
 		xy := new(XY)
 		abxy := new(XY)
-		s := *ins
-		if xy.Init(s[:len(s)-3], fSpec /*step.PrevCoord*/ , prevstep.Coord) != false { // coordinates are recognized successfully
+		s := *inString
+		if xy.Init(s[:len(s)-3], fSpec /*step.PrevCoord*/ , prevStep.Coord) != false { // coordinates are recognized successfully
 			//			step.PrevCoord = xy
 			step.Coord = xy
 			step.OriginForAB = abxy
@@ -1011,24 +977,24 @@ func (step *State) CreateStep(ins *string, prevstep *State, apertl *list.List, r
 				}
 			}
 		} else {
-			fmt.Println("Error parsing string", i, *ins)
+			fmt.Println("Error parsing string", i, *inString)
 			panic("310")
 			os.Exit(310)
 		}
 		if step.SRBlock != nil {
 			step.SRBlock.IncNSteps()
 		}
-		return SCResultStepCmpltd
+		return SCResultStepCompleted
 	}
 
 	// switch aperture
-	s := strings.TrimPrefix(*ins, "G54")
+	s := strings.TrimPrefix(*inString, "G54")
 	if strings.HasPrefix(s, "D") && strings.HasSuffix(s, "*") {
 		var tc int
 		step.CurrentAp = nil
 		tc, err := strconv.Atoi(s[1 : len(s)-1])
 		CheckError(err, 501)
-		for k := apertl.Front(); k != nil; k = k.Next() {
+		for k := apertList.Front(); k != nil; k = k.Next() {
 			if k.Value.(*Aperture).GetCode() == tc {
 				step.CurrentAp = k.Value.(*Aperture)
 				break
@@ -1040,10 +1006,10 @@ func (step *State) CreateStep(ins *string, prevstep *State, apertl *list.List, r
 		return SCResultNextString
 	}
 
-	if strings.HasPrefix(*ins, "%SRX") {
+	if strings.HasPrefix(*inString, "%SRX") {
 		fmt.Println("Step and repeat block found at line", i)
-		step.SRBlock = new(SR)
-		s := *ins
+		step.SRBlock = new(SRBlock)
+		s := *inString
 		srerr := step.SRBlock.Init(s[3:len(s)-2], fSpec)
 		CheckError(srerr, 550)
 		//		SRBlocks = append(SRBlocks, srblock)
@@ -1051,7 +1017,7 @@ func (step *State) CreateStep(ins *string, prevstep *State, apertl *list.List, r
 		return SCResultNextString
 	}
 
-	if strings.HasPrefix(s, "%SR*%") {
+	if strings.HasPrefix(s, "%SRBlock*%") {
 		fmt.Println("Step and repeat block ends at line", i)
 		step.SRBlock = nil
 		return SCResultNextString
@@ -1061,7 +1027,7 @@ func (step *State) CreateStep(ins *string, prevstep *State, apertl *list.List, r
 		fmt.Println("Stop found at line", i)
 		step.Action = OpcodeStop
 		// create the special last step
-		//		step.StepNumber = prevstep.StepNumber + 1
+		//		step.StepNumber = prevStep.StepNumber + 1
 		step.SRBlock = nil // also closes s&r block
 		return SCResultStop
 	}

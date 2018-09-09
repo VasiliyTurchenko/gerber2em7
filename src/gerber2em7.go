@@ -1,3 +1,6 @@
+// Copyright 2018 Vasily Turchenko <turchenkov@gmail.com>. All rights reserved.
+// Use of this source code is free
+
 package main
 
 import (
@@ -9,55 +12,52 @@ import (
 	"fmt"
 	"gerbparser"
 	"github.com/spf13/viper"
-	"image"
 	"image/png"
-	"math"
 	"os"
 	"plotter"
-	stor "strings_storage"
-
 	"render"
 	"runtime"
 	"strconv"
 	"strings"
+	stor "strings_storage"
+	"time"
 )
 
-const (
-	MaxInt   = int(^uint(0) >> 1)
-	MinInt   = int(-MaxInt - 1)
-	MaxInt32 = int32(math.MaxInt32)
-	MinInt32 = int32(math.MinInt32)
-	MaxInt64 = int64(math.MaxInt64)
-	MinInt64 = int64(math.MinInt64)
-)
+// TODO get rid of it
+var verboseLevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
 
-var verboselevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
+// configuration base
+var viperConfig *viper.Viper
 
+// global storage of input gerber file strings, the source to feed some processors
 var gerberStrings *stor.Storage
 
-var fSpec *gerbparser.FormatSpec
-var aperture *gerbparser.Aperture
-
+// plotter instance which is responsible for generating the command stream for the target device
 var plotterInstance *plotter.Plotter
 
-var arrayOfSteps []*gerbparser.State // state machine
+// array of steps to be executed to generate PCB
+var arrayOfSteps []*gerbparser.State
 
-var regionsList *list.List   // regions
-var aperturesList *list.List // apertures
+// the list of regions
+var regionsList *list.List
+
+// the list of all the apertures
+var aperturesList *list.List
+
+// the map consisting all the aperture blocks
 var apertureBlocks map[string]*gerbparser.BlockAperture
 
-var maxX, maxY float64 = 0, 0
-var minX, minY = 1000000.0, 1000000.0
-
-var viperConfig *viper.Viper
+// format specification for the gerber file
+var fSpec *gerbparser.FormatSpec
 
 func main() {
 
-	fmt.Println(returnAppInfo(*verboselevel))
+	fmt.Println(returnAppInfo(*verboseLevel))
+
 	viperConfig = viper.New()
 	configurator.SetDefaults(viperConfig)
 
-//	configurator.DiagnosticAllCfgPrint(viperConfig)
+	//	configurator.DiagnosticAllCfgPrint(viperConfig)
 
 	cfgFileError := configurator.ProcessConfigFile(viperConfig)
 	if cfgFileError != nil {
@@ -67,7 +67,7 @@ func main() {
 		configurator.SetDefaults(viperConfig)
 	}
 
-//	configurator.DiagnosticAllCfgPrint(viperConfig)
+	//	configurator.DiagnosticAllCfgPrint(viperConfig)
 
 	var sourceFileName string
 	flag.StringVar(&sourceFileName, "i", "", "input file")
@@ -77,7 +77,8 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(-1)
 	}
-
+	timeStamp := time.Now()
+	timeInfo(timeStamp)
 	fmt.Println("input file:", sourceFileName, "\n")
 
 	/*
@@ -85,7 +86,6 @@ func main() {
 	*/
 	printMemUsage("Memory usage before reading input file:")
 
-	//	gerberStrings = make([]string, 0)
 	gerberStrings = stor.NewStorage()
 
 	fSpec = new(gerbparser.FormatSpec)
@@ -97,8 +97,6 @@ func main() {
 	scanner := bufio.NewScanner(inFile)
 	for scanner.Scan() {
 		var splittedString *[]string
-		//		gerberStrings = append(gerberStrings, strings.ToUpper(scanner.Text()))
-
 		rawString := strings.ToUpper(scanner.Text())
 		// split concatenated command strings AAAAAD01*BBBBBBD02*GNN*D03*etc
 		splittedString = splitString(rawString)
@@ -131,26 +129,18 @@ func main() {
 	apertureBlocks = make(map[string]*gerbparser.BlockAperture)
 	apertureBlockOpened := make([]string, 0)
 
-	//	gerberStrings2 := make([]string, 0) // where to put strings to be source of the steps
-
 	gerberStrings2 := stor.NewStorage()
 
 	printMemUsage("Memory usage before extracting apertures:")
 
 	// Aperture processing loop
 	gerberStrings.ResetPos()
-	//	for i, gerberString := range gerberStrings {
-
 	for {
 		i := gerberStrings.PeekPos()
 		gerberString := gerberStrings.String()
-
 		if len(gerberString) == 0 {
 			break
 		}
-
-		//fmt.Println("i=", i)
-
 		// aperture blocks processing
 		if strings.Compare(gerberString, gerbparser.GerberApertureBlockDefEnd) == 0 {
 			last := len(apertureBlockOpened) - 1
@@ -161,8 +151,8 @@ func main() {
 			aperture.Code = apertureBlocks[apertureBlockOpened[last]].Code
 			aperture.Type = gerbparser.AptypeBlock
 			aperture.BlockPtr = apertureBlocks[apertureBlockOpened[last]]
-			aperture.BlockPtr.APStepsPtr = make([]*gerbparser.State, len(aperture.BlockPtr.APBodyPtr)+1)
-			aperture.BlockPtr.APStepsPtr[0] = gerbparser.NewStep()
+			aperture.BlockPtr.StepsPtr = make([]*gerbparser.State, len(aperture.BlockPtr.BodyStrings)+1)
+			aperture.BlockPtr.StepsPtr[0] = gerbparser.NewStep()
 			apertureBlockOpened = apertureBlockOpened[:last]
 			aperturesList.PushBack(aperture) // store correct aperture
 			continue
@@ -181,7 +171,7 @@ func main() {
 
 		if len(apertureBlockOpened) != 0 {
 			last := len(apertureBlockOpened) - 1
-			apertureBlocks[apertureBlockOpened[last]].APBodyPtr = append(apertureBlocks[apertureBlockOpened[last]].APBodyPtr, gerberString)
+			apertureBlocks[apertureBlockOpened[last]].BodyStrings = append(apertureBlocks[apertureBlockOpened[last]].BodyStrings, gerberString)
 			continue
 		}
 		/*------------------ aperture blocks processing END ----------------- */
@@ -190,17 +180,14 @@ func main() {
 		if strings.HasPrefix(gerberString, gerbparser.GerberApertureDef) &&
 			strings.HasSuffix(gerberString, "*%") {
 			// possible aperture definition found
-			aperture = new(gerbparser.Aperture)
+			aperture := new(gerbparser.Aperture)
 			apErr := aperture.Init(gerberString[4:len(gerberString)-2], fSpec)
 			checkError(apErr, 500)
 			aperturesList.PushBack(aperture) // store correct aperture
 			continue
 		}
-
 		/*------------------- aperture macro processing ------------------------ */
-
 		// TODO
-
 		// all unprocessed above goes here
 		gerberStrings2.Accept(gerberString)
 	}
@@ -212,18 +199,16 @@ func main() {
 	saveIntermediate(gerberStrings, "before_steps.txt")
 
 	// Main sequence of steps
-	arrayOfSteps = make([]*gerbparser.State, gerberStrings.Len()+1) //len(gerberStrings)+1)
-	// Global Step and Repeat blocks array
-	//	SRBlocks = make([]*gerbparser.SR, 0)
+	arrayOfSteps = make([]*gerbparser.State, gerberStrings.Len()+1)
 	// Global list of Regions
 	regionsList = list.New()
 
 	//  Aperture blocks must be converted to the steps w/o AB
 	//  S&R blocks and regions inside each instance of AB added to the global lists!
-	for ablock := range apertureBlocks {
-		bsn := createStepSequence(&apertureBlocks[ablock].APBodyPtr, &apertureBlocks[ablock].APStepsPtr, aperturesList, regionsList, fSpec)
-		apertureBlocks[ablock].APStepsPtr = apertureBlocks[ablock].APStepsPtr[:bsn]
-		//		apertureBlocks[ablock].Print()
+	for apBlock := range apertureBlocks {
+		bsn := createStepSequence(&apertureBlocks[apBlock].BodyStrings, &apertureBlocks[apBlock].StepsPtr, aperturesList, regionsList, fSpec)
+		apertureBlocks[apBlock].StepsPtr = apertureBlocks[apBlock].StepsPtr[:bsn]
+		//		apertureBlocks[apBlock].Print()
 	}
 
 	fmt.Println()
@@ -231,13 +216,11 @@ func main() {
 
 	// patch
 	// TODO get rid of the patch!
-
 	gerberStringsArray := gerberStrings.ToArray()
 
 	stepnum := createStepSequence(&gerberStringsArray, &arrayOfSteps, aperturesList, regionsList, fSpec)
 	arrayOfSteps = arrayOfSteps[:stepnum]
 
-	fmt.Println("+++++++++++++++++ Unwinded steps ++++++++++++++++")
 	/* ------------------ aperture blocks to steps ---------------------------*/
 	// each D03 must be checked against aperture block
 
@@ -248,47 +231,53 @@ func main() {
 		touch := false
 		arrayOfSteps2 := make([]*gerbparser.State, 0)
 		for k := 1; k < len(arrayOfSteps); k++ {
-			if arrayOfSteps[k].CurrentAp.Type == gerbparser.AptypeBlock &&
+			if arrayOfSteps[k].CurrentAp != nil &&
+				arrayOfSteps[k].CurrentAp.Type == gerbparser.AptypeBlock &&
 				arrayOfSteps[k].Action == gerbparser.OpcodeD03 {
-				for i, bs := range arrayOfSteps[k].CurrentAp.BlockPtr.APStepsPtr {
+				for i, bs := range arrayOfSteps[k].CurrentAp.BlockPtr.StepsPtr {
 					if i == 0 { // skip root element
 						continue
 					}
-					ns := new(gerbparser.State)
-					*ns = *bs
-					newxy := new(gerbparser.XY)
-					newxy.SetX(bs.Coord.GetX() + arrayOfSteps[k].Coord.GetX())
-					newxy.SetY(bs.Coord.GetY() + arrayOfSteps[k].Coord.GetY())
-					ns.Coord = newxy
+					newStep := new(gerbparser.State)
+					newStep.CopyOfWithOffset(bs, arrayOfSteps[k].Coord.GetX(), arrayOfSteps[k].Coord.GetY())
 					if i == 1 {
-						ns.PrevCoord = arrayOfSteps[k].PrevCoord
+						newStep.PrevCoord = arrayOfSteps[k].PrevCoord
 					} else {
-						ns.PrevCoord = arrayOfSteps2[len(arrayOfSteps2)-1].Coord
+						newStep.PrevCoord = arrayOfSteps2[len(arrayOfSteps2)-1].Coord
 					}
-
-					arrayOfSteps2 = append(arrayOfSteps2, ns)
+					arrayOfSteps2 = append(arrayOfSteps2, newStep)
 				}
 				touch = true
 			} else {
 				arrayOfSteps2 = append(arrayOfSteps2, arrayOfSteps[k])
 			}
-			//			arrayOfSteps2[len(arrayOfSteps2)-1].Print()
 		}
-		arrayOfSteps = arrayOfSteps2
-		arrayOfSteps2 = nil
+		arrayOfSteps, arrayOfSteps2 = arrayOfSteps2, nil
 		if touch == false {
 			break
 		}
 	}
-	/*
-		for i := range arrayOfSteps {
-			arrayOfSteps[i].StepNumber = i
-			arrayOfSteps[i].Print()
+
+	// unwinding SR blocks
+	printMemUsage("Memory usage before unwinding SR blocks:")
+
+	// unwind SR blocks
+	i := 0
+	for i < len(arrayOfSteps) {
+		if arrayOfSteps[i].SRBlock != nil {
+			insert, excludeLen := unwindSRBlock(&arrayOfSteps, i)
+			tailI := i + excludeLen
+			tail := arrayOfSteps[tailI:]
+			arrayOfSteps = arrayOfSteps[:i]
+			arrayOfSteps = append(arrayOfSteps, *insert...)
+			arrayOfSteps = append(arrayOfSteps, tail...)
+			i += len(*insert)
+		} else {
+			i++
 		}
-	*/
+	}
 
-
-	// print region info
+	// print regions info
 	if viperConfig.GetBool(configurator.CfgCommonPrintRegionsInfo) == true {
 		j := 0
 		for k := regionsList.Front(); k != nil; k = k.Next() {
@@ -297,7 +286,7 @@ func main() {
 		}
 		fmt.Println("Total", j, "regions found.")
 	}
-
+	// print apertures info
 	if viperConfig.GetBool(configurator.CfgCommonPrintAperturesInfo) == true {
 		j := 0
 		for k := aperturesList.Front(); k != nil; k = k.Next() {
@@ -309,8 +298,11 @@ func main() {
 
 	fmt.Println("Total", len(arrayOfSteps)-1, "steps to do.")
 
+	var maxX, maxY float64 = 0, 0
+	var minX, minY = 1000000.0, 1000000.0
+
+	// TODO min, max X, Y do not reflect the real min and max values due unwinded SB blocks
 	for k := range arrayOfSteps {
-		//		fmt.Printf("%+v\n", arrayOfSteps[k])
 		if arrayOfSteps[k].Coord.GetX() > maxX {
 			maxX = arrayOfSteps[k].Coord.GetX()
 		}
@@ -326,120 +318,113 @@ func main() {
 	}
 
 	printMemUsage("Memory usage before rendering:")
+	timeInfo(timeStamp)
+	fmt.Println("Rendering process started\n")
 
 	/*
 	   let's render the PCB
 	*/
-
 	plotterInstance = plotter.NewPlotter()
-	plotterInstance.Pen(1)
-
-	render.PlCfg.SetDrawContoursMode()
-	render.PlCfg.SetDrawSolidsMode()
-	//	render.PlCfg.SetDrawMovesMode()
-	render.PlCfg.SetNotDrawMovesMode()
-	render.PlCfg.SetDrawOnlyRegionsMode()
-	render.PlCfg.SetDrawAllMode()
-
-	renderContext := new(render.Render)
-
-	render.Stat.CircleBresCounter = 0
-	render.Stat.LineBresCounter = 0
+	plotterInstance.TakePen(1)
+	plotterInstance.SetOutFileName(viperConfig.GetString(configurator.CfgPlotterOutFile))
+	renderContext := render.NewRender(plotterInstance, viperConfig)
 	fmt.Println("Min. X, Y found:", minX, minY)
 	fmt.Println("Max. X, Y found:", maxX, maxY)
-
-	renderContext.Init(plotterInstance)
 	renderContext.SetMinXY(minX, minY)
 
-	renderContext.Img = image.NewNRGBA(image.Rect(renderContext.LimitsX0, renderContext.LimitsY0, renderContext.LimitsX1, renderContext.LimitsY1))
-
-	//	k := 0
-	k := 1
+	k := 0
 	for k < len(arrayOfSteps) {
-		stepToDo := arrayOfSteps[k]
-
-		/* unwind step and repeat block(s)*/
-		if stepToDo.SRBlock != nil {
-			// first time we've met sr
-			kStop := k + stepToDo.SRBlock.NSteps() // stop value
-
-			//			var srStep *gerbparser.State
-			fakePrev := new(gerbparser.XY)
-			fakePrev.SetX(0)
-			fakePrev.SetY(0)
-			modc := make([]gerbparser.State, stepToDo.SRBlock.NSteps()*stepToDo.SRBlock.NumX()*stepToDo.SRBlock.NumY())
-			ii := stepToDo.SRBlock.NumX()
-			jj := stepToDo.SRBlock.NumY()
-			modccnt := 0
-			var addX, addY float64
-			for j := 0; j < jj; j++ {
-				addY = float64(j) * arrayOfSteps[k].SRBlock.DY()
-				for i := 0; i < ii; i++ {
-					addX = float64(i) * arrayOfSteps[k].SRBlock.DX()
-					for kk := k; kk < kStop; kk++ {
-						//						srStep = arrayOfSteps[kk]
-						if kk == k {
-							//							srStep.PrevCoord = fakePrev
-							modc[modccnt].PrevCoord = fakePrev
-						} else {
-							modc[modccnt].PrevCoord = modc[modccnt-1].Coord
-
-						}
-						modc[modccnt].Action = arrayOfSteps[kk].Action
-						modc[modccnt].Region = arrayOfSteps[kk].Region
-						modc[modccnt].SRBlock = arrayOfSteps[kk].SRBlock
-						modc[modccnt].IpMode = arrayOfSteps[kk].IpMode
-						modc[modccnt].QMode = arrayOfSteps[kk].QMode
-						modc[modccnt].CurrentAp = arrayOfSteps[kk].CurrentAp
-						modc[modccnt].Polarity = arrayOfSteps[kk].Polarity
-						modc[modccnt].StepNumber = arrayOfSteps[kk].StepNumber
-						modc[modccnt].Coord = new(gerbparser.XY)
-						modc[modccnt].Coord.SetX(arrayOfSteps[kk].Coord.GetX() + addX)
-						modc[modccnt].Coord.SetY(arrayOfSteps[kk].Coord.GetY() + addY)
-						modc[modccnt].Coord.SetI(arrayOfSteps[kk].Coord.GetI())
-						modc[modccnt].Coord.SetJ(arrayOfSteps[kk].Coord.GetJ())
-						//						srStep.Coord = modc[modccnt].Coord
-						//						modc[modccnt].Print()
-						renderContext.StepProcessor(&modc[modccnt])
-						modccnt++
-					}
-				}
-			}
-			k = kStop
-			continue
-		}
-
-		if stepToDo.Action == gerbparser.OpcodeStop {
+		if arrayOfSteps[k].Action == gerbparser.OpcodeStop {
 			break
 		}
-
-		renderContext.StepProcessor(stepToDo)
+		renderContext.StepProcessor(arrayOfSteps[k])
 		k++
 	}
 
-	fmt.Printf("%s%d%s", "The plotter have drawn ", render.Stat.LineBresCounter, " straight lines using Brezenham\n")
-	fmt.Printf("%s%.0f%s", "Total lenght of straight lines = ", render.Stat.LineBresLen*renderContext.XRes, " mm\n")
-	fmt.Printf("%s%d%s", "The plotter have drawn ", render.Stat.CircleBresCounter, " circles\n")
-	fmt.Printf("%s%.0f%s", "Total lenght of circles = ", render.Stat.CircleLen*renderContext.XRes, " mm\n")
-	fmt.Println("The plotter have drawn", render.Stat.FilledRctCounter, "filled rectangles")
-	fmt.Println("The plotter have drawn", render.Stat.ObRoundCounter, "obrounds (boxes)")
-	fmt.Println("The plotter have moved pen", render.Stat.MovePenCounters, "times")
-	fmt.Printf("%s%.0f%s", "Total move distance = ", render.Stat.MovePenDistance*renderContext.XRes, " mm\n")
+	//
+	//// the first step
+	//k := 0
+	//for k < len(arrayOfSteps) {
+	//	//	stepBeginTime := time.Now()
+	//	stepToDo := arrayOfSteps[k]
+	//	/* unwind step and repeat block(s)*/
+	//	if stepToDo.SRBlock != nil {
+	//		// once came into, no return until sr block stays not fully processed
+	//		kStop := k + stepToDo.SRBlock.NSteps() // stop value
+	//		numXSteps := stepToDo.SRBlock.NumX()
+	//		numYSteps := stepToDo.SRBlock.NumY()
+	//		numberOfStepsInSRBlock := stepToDo.SRBlock.NSteps() * numXSteps * numYSteps
+	//		SRBlockSteps := make([]gerbparser.State, numberOfStepsInSRBlock)
+	//		stepCounter := 0
+	//		var addX, addY float64
+	//		for j := 0; j < numYSteps; j++ {
+	//			addY = float64(j) * arrayOfSteps[k].SRBlock.DY()
+	//			for i := 0; i < numXSteps; i++ {
+	//				addX = float64(i) * arrayOfSteps[k].SRBlock.DX()
+	//				for kk := k; kk < kStop; kk++ {
+	//					if kk == k {
+	//						SRBlockSteps[stepCounter].PrevCoord = gerbparser.NewXY()
+	//					} else {
+	//						SRBlockSteps[stepCounter].PrevCoord = SRBlockSteps[stepCounter-1].Coord
+	//					}
+	//					SRBlockSteps[stepCounter].CopyOfWithOffset(arrayOfSteps[kk], addX, addY)
+	//					renderContext.StepProcessor(&SRBlockSteps[stepCounter])
+	//					stepCounter++
+	//				}
+	//			}
+	//		}
+	//		k = kStop
+	//		continue
+	//	}
+	//	if stepToDo.Action == gerbparser.OpcodeStop {
+	//		break
+	//	}
+	//	renderContext.StepProcessor(stepToDo)
+	//	/*
+	//		timeInfo(stepBeginTime)
+	//		fmt.Print("step ", k)
+	//		fmt.Print(" action ", stepToDo.Action)
+	//		fmt.Println(" aperture ", stepToDo.CurrentAp)
+	//	*/
+	//	k++
+	//}
+
+	if viperConfig.GetBool(configurator.CfgCommonPrintStatistic) == true {
+		fmt.Printf("%s%d%s", "The plotter have drawn ", renderContext.LineBresCounter, " straight lines using Brezenham\n")
+		fmt.Printf("%s%.0f%s", "Total lenght of straight lines = ", renderContext.LineBresLen*renderContext.XRes, " mm\n")
+		fmt.Printf("%s%d%s", "The plotter have drawn ", renderContext.CircleBresCounter, " circles\n")
+		fmt.Printf("%s%.0f%s", "Total lenght of circles = ", renderContext.CircleLen*renderContext.XRes, " mm\n")
+		fmt.Println("The plotter have drawn", renderContext.FilledRctCounter, "filled rectangles")
+		fmt.Println("The plotter have drawn", renderContext.ObRoundCounter, "obrounds (boxes)")
+		fmt.Println("The plotter have moved pen", renderContext.MovePenCounters, "times")
+		fmt.Printf("%s%.0f%s", "Total move distance = ", renderContext.MovePenDistance*renderContext.XRes, " mm\n")
+
+	}
+	timeInfo(timeStamp)
+	fmt.Println("Rendering process finished")
 
 	// Save to out.png
-	f, _ := os.OpenFile("G:\\go_prj\\gerber2em7\\src\\out.png", os.O_WRONLY|os.O_CREATE, 0600)
-	defer f.Close()
-
-	printMemUsage("Memory usage before  png encoding:")
-
-	png.Encode(f, renderContext.Img)
-
+	if viperConfig.GetBool(configurator.CfgRendererGeneratePNG) == true {
+		printMemUsage("Memory usage before png encoding:")
+		timeInfo(timeStamp)
+		fmt.Println("Generating png image ")
+		f, _ := os.OpenFile("G:\\go_prj\\gerber2em7\\src\\out.png", os.O_WRONLY|os.O_CREATE, 0600)
+		defer f.Close()
+		png.Encode(f, renderContext.Img)
+		timeInfo(timeStamp)
+		fmt.Println("Image is saved to the file", viperConfig.GetString(configurator.CfgRendererOutFile))
+		printMemUsage("Memory usage after png encoding:")
+	}
+	timeInfo(timeStamp)
+	fmt.Println("Saving plotter commands stream to file")
 	plotterInstance.Stop()
+	timeInfo(timeStamp)
+	fmt.Println("Plotter commands are saved to the file", viperConfig.GetString(configurator.CfgPlotterOutFile))
+	timeInfo(timeStamp)
+	fmt.Println("Exiting")
 }
 
-
 ////////////////////////////////////////////////////// end of main ///////////////////////////////////////////////////
-
 
 // search for format strings
 func searchMO(storage *stor.Storage) (string, error) {
@@ -483,18 +468,6 @@ func searchFS(storage *stor.Storage) (string, error) {
 	}
 	return "", errors.New("_FS_ command not found")
 }
-
-/*
-func abs(x int) int {
-	switch {
-	case x >= 0:
-		return x
-	case x >= MinInt:
-		return -x
-	}
-	panic("math/int.Abs: invalid argument")
-}
-*/
 
 /*
 	Saves intermediate results from the strings storage to the file
@@ -559,6 +532,12 @@ func splitString(rawString string) *[]string {
 	}
 	return &splittedStrings
 }
+func printSqueezedOut(str string) {
+	if viperConfig.GetBool(configurator.CfgCommonPrintGerberComments) == true {
+		fmt.Println(str)
+	}
+	return
+}
 
 func squeezeString(inString string) string {
 	// remove comments and other un-nesessary strings
@@ -566,7 +545,7 @@ func squeezeString(inString string) string {
 	// attributes - TODO MAKE USE!!!!
 	// strip comments
 	if strings.HasPrefix(inString, "G04") || strings.HasPrefix(inString, "G4") { // +09-Jun-2018
-		fmt.Println("Comment", inString, " is found")
+		printSqueezedOut("Comment " + inString + " is found")
 		return ""
 	}
 	// strip some obsolete commands
@@ -577,7 +556,7 @@ func squeezeString(inString string) string {
 		strings.HasPrefix(inString, "%SF") ||
 		strings.HasPrefix(inString, "%IN") ||
 		strings.HasPrefix(inString, "%LN") {
-		fmt.Println("Obsolete command", inString, " is found")
+		printSqueezedOut("Obsolete command " + inString + " is found")
 		return ""
 	}
 	if strings.Compare(inString, "%SRX1Y1I0J0*%") == 0 { //  +09-Jun-2018
@@ -588,7 +567,7 @@ func squeezeString(inString string) string {
 		strings.HasPrefix(inString, "%TA") ||
 		strings.HasPrefix(inString, "%TO") ||
 		strings.HasPrefix(inString, "%TD") {
-		fmt.Println("Attribute", inString, " is found")
+		printSqueezedOut("Attribute " + inString + " is found")
 		return ""
 	}
 	if strings.Compare(inString, "*") == 0 {
@@ -632,11 +611,15 @@ func returnAppInfo(verbLevel int) string {
 // aperturesList *list.List - pointer to the global aperture list
 // regionsList *list.List - pointer to the global regions list
 // fSpec *gerbparser.FormatSpec - pointer to the format specif. object
-// stepnum - number of the created steps started from 1
+// NumberOfSteps - number of the created steps started from 1
 
-func createStepSequence(src *[]string, resSteps *[]*gerbparser.State, apertl *list.List, regl *list.List, fSpec *gerbparser.FormatSpec) (stepnum int) {
+func createStepSequence(src *[]string,
+	resSteps *[]*gerbparser.State,
+	apertl *list.List,
+	regl *list.List,
+	fSpec *gerbparser.FormatSpec) (NumberOfSteps int) {
 
-	stepnum = 1 // step number
+	stepNumber := 1 // step number
 	stepCompleted := true
 	// create the root step with default properties
 	(*resSteps)[0] = gerbparser.NewStep()
@@ -645,40 +628,38 @@ func createStepSequence(src *[]string, resSteps *[]*gerbparser.State, apertl *li
 	for i, s := range *src {
 		if stepCompleted == true {
 			step = new(gerbparser.State)
-			*step = *(*resSteps)[stepnum-1]
+			*step = *(*resSteps)[stepNumber-1]
 			step.Coord = nil
 			step.PrevCoord = nil
 		}
-		//		fmt.Printf(">>>>>%v  %v\n", stepnum, arrayOfSteps[stepnum])
-		procres := step.CreateStep( /*&gerberStrings[i]*/ &s, (*resSteps)[stepnum-1], apertl, regl, i, fSpec)
-		switch procres {
+		//		fmt.Printf(">>>>>%v  %v\n", stepNumber, arrayOfSteps[stepNumber])
+		createStepResult := step.CreateStep(&s, (*resSteps)[stepNumber-1], apertl, regl, i, fSpec)
+		switch createStepResult {
 		case gerbparser.SCResultNextString:
 			fallthrough
 		case gerbparser.SCResultSkipString:
 			stepCompleted = false
 			continue
-		case gerbparser.SCResultStepCmpltd:
-			step.PrevCoord = (*resSteps)[stepnum-1].Coord
-			step.StepNumber = stepnum
-			(*resSteps)[stepnum] = step
-			stepnum++
+		case gerbparser.SCResultStepCompleted:
+			step.PrevCoord = (*resSteps)[stepNumber-1].Coord
+			step.StepNumber = stepNumber
+			(*resSteps)[stepNumber] = step
+			stepNumber++
 			stepCompleted = true
 			continue
 		case gerbparser.SCResultStop:
-			step.StepNumber = stepnum
-			(*resSteps)[stepnum] = step
-			step.Coord = (*resSteps)[stepnum-1].Coord
-			stepnum++
+			step.StepNumber = stepNumber
+			(*resSteps)[stepNumber] = step
+			step.Coord = (*resSteps)[stepNumber-1].Coord
+			stepNumber++
 			stepCompleted = true
 			break
 		default:
 			break
 		}
-
 		fmt.Println("Still unknown command: ", s) // print unknown strings
 	} // end of input strings parsing
-
-	return stepnum
+	return stepNumber
 }
 
 // PrintMemUsage outputs the current, total and OS memory being used. As well as the number
@@ -701,6 +682,61 @@ func printMemUsage(header string) {
 
 func bToKb(b uint64) uint64 {
 	return b / 1024
+}
+
+func timeInfo(prev time.Time) {
+	now := time.Now()
+	elapsed := time.Since(prev)
+	/*
+		"[23:59:04 +2.00001] "
+	*/
+	out := "["
+	hr := strconv.Itoa(now.Hour())
+	if len(hr) == 1 {
+		hr = "0" + hr
+	}
+	min := strconv.Itoa(now.Minute())
+	if len(min) == 1 {
+		min = "0" + min
+	}
+	sec := strconv.Itoa(now.Second())
+	if len(sec) == 1 {
+		sec = "0" + sec
+	}
+
+	out = out + hr + ":" + min + ":" + sec + " +"
+	elapsedSec := (float64(elapsed.Nanoseconds() / (1000 * 1000))) / 1000.0
+	out = out + strconv.FormatFloat(elapsedSec, 'f', 3, 64) + "] "
+	fmt.Print(out)
+}
+
+func unwindSRBlock(steps *[]*gerbparser.State, k int) (*[]*gerbparser.State, int) {
+	firstSRStep := (*steps)[k]
+	// once came into, no return until sr block stays not fully processed
+	kStop := k + firstSRStep.SRBlock.NSteps() // stop value
+	numXSteps := firstSRStep.SRBlock.NumX()
+	numYSteps := firstSRStep.SRBlock.NumY()
+	numberOfStepsInSRBlock := firstSRStep.SRBlock.NSteps() * numXSteps * numYSteps
+	SRBlockSteps := make([]*gerbparser.State, numberOfStepsInSRBlock)
+	stepCounter := 0
+	var addX, addY float64
+	for j := 0; j < numYSteps; j++ {
+		addY = float64(j) * firstSRStep.SRBlock.DY()
+		for i := 0; i < numXSteps; i++ {
+			addX = float64(i) * firstSRStep.SRBlock.DX()
+			for kk := k; kk < kStop; kk++ {
+				SRBlockSteps[stepCounter] = gerbparser.NewStep()
+				if kk == k {
+					SRBlockSteps[stepCounter].PrevCoord = gerbparser.NewXY()
+				} else {
+					SRBlockSteps[stepCounter].PrevCoord = SRBlockSteps[stepCounter-1].Coord
+				}
+				SRBlockSteps[stepCounter].CopyOfWithOffset((*steps)[kk], addX, addY)
+				stepCounter++
+			}
+		}
+	}
+	return &SRBlockSteps, kStop
 }
 
 /* ########################################## EOF #########################################################*/

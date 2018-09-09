@@ -7,12 +7,25 @@ import (
 )
 
 const (
-	CfgCommonPrintMemoryInfo    string = "common.PrintMemoryInfo"
-	CfgCommonPrintAperturesInfo string = "common.PrintAperturesInfo"
-	CfgCommonPrintRegionsInfo   string = "common.PrintRegionsInfo"
-	CfgCommonPrintStatistic   string = "common.PrintStatistic"
-	CfgParserSaveIntermediate string = "parser.SaveIntermediate"
+	CfgCommonPrintMemoryInfo     string = "common.PrintMemoryInfo"
+	CfgCommonPrintAperturesInfo  string = "common.PrintAperturesInfo"
+	CfgCommonPrintRegionsInfo    string = "common.PrintRegionsInfo"
+	CfgCommonPrintStatistic      string = "common.PrintStatistic"
+	CfgParserSaveIntermediate    string = "parser.SaveIntermediate"
+	CfgCommonPrintGerberComments string = "common.PrintGerberComments"
+	CfgRendererOutFile           string = "renderer.OutFile"
+	CfgRendererGeneratePNG       string = "renderer.GeneratePNG"
 
+	CfgPlotterOutFile string = "plotter.OutFile"
+	CfgPlotterXRes string = "plotter.xRes"
+	CfgPlotterYRes string ="plotter.yRes"
+	CfgPlotterPenSizes string = "plotter.PenSizes"
+)
+
+const (
+	CfgRenderDrawContours    string = "renderer.DrawContours"
+	CfgRenderDrawMoves       string = "renderer.DrawMoves"
+	CfgRenderDrawOnlyRegions string = "renderer.DrawOnlyRegions"
 )
 
 func SetDefaults(v *viper.Viper) {
@@ -25,11 +38,12 @@ func SetDefaults(v *viper.Viper) {
 	v.SetDefault(CfgCommonPrintAperturesInfo, true)
 	v.SetDefault(CfgCommonPrintRegionsInfo, true)
 	v.SetDefault(CfgCommonPrintStatistic, true)
+	v.SetDefault(CfgCommonPrintGerberComments, true)
 
 	//
 	v.SetDefault(CfgParserSaveIntermediate, true)
-	v.SetDefault("renderer.GeneratePNG", true)
-	v.SetDefault("renderer.OutFile", "out.png")
+	v.SetDefault(CfgRendererGeneratePNG, true)
+	v.SetDefault(CfgRendererOutFile, "out.png")
 
 	//
 	v.SetDefault("pcb.xOrigin", 0)
@@ -38,10 +52,15 @@ func SetDefaults(v *viper.Viper) {
 	//
 	v.SetDefault("renderer.CanvasWidth", 297)
 	v.SetDefault("renderer.CanvasHeight", 210)
-	//
-	v.SetDefault("plotter.PenSizes", []float64{0.07, 0.07, 0.07, 0.00})
-	v.SetDefault("plotter.xRes", 0.025)
-	v.SetDefault("plotter.yRes", 0.025)
+
+	v.SetDefault(CfgRenderDrawContours, false)
+	v.SetDefault(CfgRenderDrawMoves, false)
+	v.SetDefault(CfgRenderDrawOnlyRegions, false)
+
+	v.SetDefault(CfgPlotterPenSizes, []float64{0.07, 0.07, 0.07, 0.00})
+	v.SetDefault(CfgPlotterXRes, 0.025)
+	v.SetDefault(CfgPlotterYRes, 0.025)
+	v.SetDefault(CfgPlotterOutFile, "plotter.out")
 
 }
 
