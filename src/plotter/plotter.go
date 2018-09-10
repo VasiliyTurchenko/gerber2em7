@@ -25,6 +25,8 @@ type Plotter struct {
 	outputFile      *os.File
 	err             error
 	outStringBuffer []string
+//	outStringBuffer *stor.Storage
+
 }
 
 func NewPlotter() *Plotter {
@@ -39,9 +41,10 @@ func NewPlotter() *Plotter {
 func (plotter *Plotter) Init() string {
 	plotter.currentPosX = 0
 	plotter.currentPosY = 0
-	plotter.outStringBuffer = make([]string, 0)
+	plotter.outStringBuffer = /*stor.NewStorage() */ make([]string, 0)
 	retVal := "J\n"
 	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
+//	plotter.outStringBuffer.Accept(retVal)
 	return retVal
 }
 

@@ -193,8 +193,7 @@ func main() {
 	}
 
 	// Global array of commands
-	gerberStrings = gerberStrings2
-	gerberStrings2 = nil
+	gerberStrings, gerberStrings2 = gerberStrings2, nil
 
 	saveIntermediate(gerberStrings, "before_steps.txt")
 
@@ -208,7 +207,6 @@ func main() {
 	for apBlock := range apertureBlocks {
 		bsn := createStepSequence(&apertureBlocks[apBlock].BodyStrings, &apertureBlocks[apBlock].StepsPtr, aperturesList, regionsList, fSpec)
 		apertureBlocks[apBlock].StepsPtr = apertureBlocks[apBlock].StepsPtr[:bsn]
-		//		apertureBlocks[apBlock].Print()
 	}
 
 	fmt.Println()
@@ -218,8 +216,8 @@ func main() {
 	// TODO get rid of the patch!
 	gerberStringsArray := gerberStrings.ToArray()
 
-	stepnum := createStepSequence(&gerberStringsArray, &arrayOfSteps, aperturesList, regionsList, fSpec)
-	arrayOfSteps = arrayOfSteps[:stepnum]
+	numberOfSteps := createStepSequence(&gerberStringsArray, &arrayOfSteps, aperturesList, regionsList, fSpec)
+	arrayOfSteps = arrayOfSteps[:numberOfSteps]
 
 	/* ------------------ aperture blocks to steps ---------------------------*/
 	// each D03 must be checked against aperture block
@@ -233,7 +231,7 @@ func main() {
 		for k := 1; k < len(arrayOfSteps); k++ {
 			if arrayOfSteps[k].CurrentAp != nil &&
 				arrayOfSteps[k].CurrentAp.Type == gerbparser.AptypeBlock &&
-				arrayOfSteps[k].Action == gerbparser.OpcodeD03 {
+				arrayOfSteps[k].Action == gerbparser.OpcodeD03_FLASH {
 				for i, bs := range arrayOfSteps[k].CurrentAp.BlockPtr.StepsPtr {
 					if i == 0 { // skip root element
 						continue
@@ -300,8 +298,6 @@ func main() {
 
 	var maxX, maxY float64 = 0, 0
 	var minX, minY = 1000000.0, 1000000.0
-
-	// TODO min, max X, Y do not reflect the real min and max values due unwinded SB blocks
 	for k := range arrayOfSteps {
 		if arrayOfSteps[k].Coord.GetX() > maxX {
 			maxX = arrayOfSteps[k].Coord.GetX()
@@ -332,6 +328,8 @@ func main() {
 	fmt.Println("Max. X, Y found:", maxX, maxY)
 	renderContext.SetMinXY(minX, minY)
 
+	printMemUsage("Memory usage after render context was initialized:")
+
 	k := 0
 	for k < len(arrayOfSteps) {
 		if arrayOfSteps[k].Action == gerbparser.OpcodeStop {
@@ -340,54 +338,6 @@ func main() {
 		renderContext.StepProcessor(arrayOfSteps[k])
 		k++
 	}
-
-	//
-	//// the first step
-	//k := 0
-	//for k < len(arrayOfSteps) {
-	//	//	stepBeginTime := time.Now()
-	//	stepToDo := arrayOfSteps[k]
-	//	/* unwind step and repeat block(s)*/
-	//	if stepToDo.SRBlock != nil {
-	//		// once came into, no return until sr block stays not fully processed
-	//		kStop := k + stepToDo.SRBlock.NSteps() // stop value
-	//		numXSteps := stepToDo.SRBlock.NumX()
-	//		numYSteps := stepToDo.SRBlock.NumY()
-	//		numberOfStepsInSRBlock := stepToDo.SRBlock.NSteps() * numXSteps * numYSteps
-	//		SRBlockSteps := make([]gerbparser.State, numberOfStepsInSRBlock)
-	//		stepCounter := 0
-	//		var addX, addY float64
-	//		for j := 0; j < numYSteps; j++ {
-	//			addY = float64(j) * arrayOfSteps[k].SRBlock.DY()
-	//			for i := 0; i < numXSteps; i++ {
-	//				addX = float64(i) * arrayOfSteps[k].SRBlock.DX()
-	//				for kk := k; kk < kStop; kk++ {
-	//					if kk == k {
-	//						SRBlockSteps[stepCounter].PrevCoord = gerbparser.NewXY()
-	//					} else {
-	//						SRBlockSteps[stepCounter].PrevCoord = SRBlockSteps[stepCounter-1].Coord
-	//					}
-	//					SRBlockSteps[stepCounter].CopyOfWithOffset(arrayOfSteps[kk], addX, addY)
-	//					renderContext.StepProcessor(&SRBlockSteps[stepCounter])
-	//					stepCounter++
-	//				}
-	//			}
-	//		}
-	//		k = kStop
-	//		continue
-	//	}
-	//	if stepToDo.Action == gerbparser.OpcodeStop {
-	//		break
-	//	}
-	//	renderContext.StepProcessor(stepToDo)
-	//	/*
-	//		timeInfo(stepBeginTime)
-	//		fmt.Print("step ", k)
-	//		fmt.Print(" action ", stepToDo.Action)
-	//		fmt.Println(" aperture ", stepToDo.CurrentAp)
-	//	*/
-	//	k++
-	//}
 
 	if viperConfig.GetBool(configurator.CfgCommonPrintStatistic) == true {
 		fmt.Printf("%s%d%s", "The plotter have drawn ", renderContext.LineBresCounter, " straight lines using Brezenham\n")
@@ -665,7 +615,6 @@ func createStepSequence(src *[]string,
 // PrintMemUsage outputs the current, total and OS memory being used. As well as the number
 // of garbage collection cycles completed.
 func printMemUsage(header string) {
-
 	if viperConfig.GetBool(configurator.CfgCommonPrintMemoryInfo) == false {
 		return
 	}

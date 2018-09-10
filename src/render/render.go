@@ -17,10 +17,6 @@ import (
 const (
 	MaxInt   = int(^uint(0) >> 1)
 	MinInt   = int(-MaxInt - 1)
-	MaxInt32 = int32(math.MaxInt32)
-	MinInt32 = int32(math.MinInt32)
-	MaxInt64 = int64(math.MaxInt64)
-	MinInt64 = int64(math.MinInt64)
 )
 
 /*
@@ -67,6 +63,7 @@ type Render struct {
 	DrawContours        bool
 	DrawMoves           bool
 	DrawOnlyRegionsMode bool
+	PrintRegionInfo		bool
 
 	//statistic
 	LineBresCounter   int
@@ -121,7 +118,7 @@ func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper) {
 	rc.MissedColor = color.RGBA{255, 0, 255, 255}
 	rc.ContourColor = color.RGBA{0, 255, 0, 255}
 	rc.Img = image.NewNRGBA(image.Rect(rc.LimitsX0, rc.LimitsY0, rc.LimitsX1, rc.LimitsY1))
-
+//	rc.Img = image.NewNRGBA(image.Rect(0,0,1,1))
 	rc.Plt = plt
 
 	// drawing modes setting
@@ -129,6 +126,7 @@ func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper) {
 	rc.DrawContours = viper.GetBool(configurator.CfgRenderDrawContours)
 	rc.DrawMoves = viper.GetBool(configurator.CfgRenderDrawMoves)
 	rc.DrawOnlyRegionsMode = viper.GetBool(configurator.CfgRenderDrawOnlyRegions)
+	rc.PrintRegionInfo = viper.GetBool(configurator.CfgPrintRegionInfo)
 
 	return
 }
@@ -268,7 +266,7 @@ func (rc *Render) drawByCircleAperture(x0, y0, x1, y1, apDia int, col color.Colo
 	// non-orthogonal draw
 	dx := float64(x1 - x0)
 	dy := float64(y1 - y0)
-	l := hyp(dx, dy)
+	l := math.Hypot(dx, dy)
 	var sdelta = 1.0
 	if x1 > x0 {
 		sdelta = -1.0
@@ -310,13 +308,11 @@ func (rc *Render) drawByCircleAperture(x0, y0, x1, y1, apDia int, col color.Colo
 //const strat int = 0  // closed rectangles inserted each into other
 const strat int = 1 // zig-zag
 
-
 // draws a filled rectangle
 func (rc *Render) filledRectangle(origX, origY, w, h int, col color.Color) {
 
-	xpen := origX // real pen position
-	ypen := origY // real pen position
-	ptsz := rc.PointSizeI
+	xPen := origX   // real pen position
+	yPen := origY   // real pen position
 
 	// performs rectangle aperture flash
 	x0 := origX - (w / 2)
@@ -330,42 +326,42 @@ func (rc *Render) filledRectangle(origX, origY, w, h int, col color.Color) {
 		rc.drawByBrezenham(x1, y1, x0, y1, 1, rc.ContourColor)
 		rc.drawByBrezenham(x0, y1, x0, y0, 1, rc.ContourColor)
 	}
-	x0 = x0 + (ptsz / 2)
-	y0 = y0 + (ptsz / 2)
+	x0 = x0 + (rc.PointSizeI / 2)
+	y0 = y0 + (rc.PointSizeI / 2)
 
-	x1 = x1 - (ptsz / 2)
-	y1 = y1 - (ptsz / 2)
+	x1 = x1 - (rc.PointSizeI / 2)
+	y1 = y1 - (rc.PointSizeI / 2)
 
 	// imitate pen moving to the start point
-	rc.drawByBrezenham(origX, origY, x0, y0, ptsz, col)
+	rc.drawByBrezenham(origX, origY, x0, y0, rc.PointSizeI, col)
 
 	// draw contour
-	xpen, ypen = rc.drawByBrezenham(x0, y0, x1, y0, ptsz, col)
-	xpen, ypen = rc.drawByBrezenham(x1, y0, x1, y1, ptsz, col)
-	xpen, ypen = rc.drawByBrezenham(x1, y1, x0, y1, ptsz, col)
-	xpen, ypen = rc.drawByBrezenham(x0, y1, x0, y0, ptsz, col)
+	xPen, yPen = rc.drawByBrezenham(x0, y0, x1, y0, rc.PointSizeI, col)
+	xPen, yPen = rc.drawByBrezenham(x1, y0, x1, y1, rc.PointSizeI, col)
+	xPen, yPen = rc.drawByBrezenham(x1, y1, x0, y1, rc.PointSizeI, col)
+	xPen, yPen = rc.drawByBrezenham(x0, y1, x0, y0, rc.PointSizeI, col)
 
 	xp := x0
 	yp := y0
 
-	x0 = x0 + ptsz
-	y0 = y0 + ptsz
-	x1 = x1 - ptsz
-	y1 = y1 - ptsz
+	x0 = x0 + rc.PointSizeI
+	y0 = y0 + rc.PointSizeI
+	x1 = x1 - rc.PointSizeI
+	y1 = y1 - rc.PointSizeI
 
-	rc.drawByBrezenham(xp, yp, x0, y0, ptsz, col)
+	rc.drawByBrezenham(xp, yp, x0, y0, rc.PointSizeI, col)
 
 	if strat == 0 {
 		for {
-			xpen, ypen = rc.drawByBrezenham(x0, y0, x1, y0, ptsz, col)
-			xpen, ypen = rc.drawByBrezenham(x1, y0, x1, y1, ptsz, col)
-			xpen, ypen = rc.drawByBrezenham(x1, y1, x0, y1, ptsz, col)
-			xpen, ypen = rc.drawByBrezenham(x0, y1, x0, y0, ptsz, col)
+			xPen, yPen = rc.drawByBrezenham(x0, y0, x1, y0, rc.PointSizeI, col)
+			xPen, yPen = rc.drawByBrezenham(x1, y0, x1, y1, rc.PointSizeI, col)
+			xPen, yPen = rc.drawByBrezenham(x1, y1, x0, y1, rc.PointSizeI, col)
+			xPen, yPen = rc.drawByBrezenham(x0, y1, x0, y0, rc.PointSizeI, col)
 
-			x0 = x0 + ptsz
-			x1 = x1 - ptsz
-			y0 = y0 + ptsz
-			y1 = y1 - ptsz
+			x0 = x0 + rc.PointSizeI
+			x1 = x1 - rc.PointSizeI
+			y0 = y0 + rc.PointSizeI
+			y1 = y1 - rc.PointSizeI
 
 			if ((x1 - x0) < 0) || ((y1 - y0) < 0) {
 				break
@@ -374,55 +370,55 @@ func (rc *Render) filledRectangle(origX, origY, w, h int, col color.Color) {
 	}
 	if strat == 1 {
 		if w > h {
-			var tmpy int
-			var retx int
+			var tmpY int
+			var retX int
 			for {
-				xpen, ypen = rc.drawByBrezenham(x0, y0, x1, y0, ptsz, col)
-				tmpy = y0
-				y0 = y0 + ptsz
+				xPen, yPen = rc.drawByBrezenham(x0, y0, x1, y0, rc.PointSizeI, col)
+				tmpY = y0
+				y0 = y0 + rc.PointSizeI
 				if y0 > y1 {
-					retx = x1
+					retX = x1
 					break
 				}
-				xpen, ypen = rc.drawByBrezenham(x1, tmpy, x1, y0, ptsz, col)
-				xpen, ypen = rc.drawByBrezenham(x1, y0, x0, y0, ptsz, col)
-				tmpy = y0
-				y0 = y0 + ptsz
+				xPen, yPen = rc.drawByBrezenham(x1, tmpY, x1, y0, rc.PointSizeI, col)
+				xPen, yPen = rc.drawByBrezenham(x1, y0, x0, y0, rc.PointSizeI, col)
+				tmpY = y0
+				y0 = y0 + rc.PointSizeI
 				if y0 > y1 {
-					retx = x0
+					retX = x0
 					break
 				}
-				xpen, ypen = rc.drawByBrezenham(x0, tmpy, x0, y0, ptsz, col)
+				xPen, yPen = rc.drawByBrezenham(x0, tmpY, x0, y0, rc.PointSizeI, col)
 			}
 			// imitate pen moving to the origin point
-			xpen, ypen = rc.drawByBrezenham(retx, tmpy, origX, origY, ptsz, col)
+			xPen, yPen = rc.drawByBrezenham(retX, tmpY, origX, origY, rc.PointSizeI, col)
 		} else {
-			var tmpx int
-			var rety int
+			var tmpX int
+			var retY int
 			for {
-				xpen, ypen = rc.drawByBrezenham(x0, y0, x0, y1, ptsz, col)
-				tmpx = x0
-				x0 = x0 + ptsz
+				xPen, yPen = rc.drawByBrezenham(x0, y0, x0, y1, rc.PointSizeI, col)
+				tmpX = x0
+				x0 = x0 + rc.PointSizeI
 				if x0 > x1 {
-					rety = y1
+					retY = y1
 					break
 				}
-				xpen, ypen = rc.drawByBrezenham(tmpx, y1, x0, y1, ptsz, col)
-				xpen, ypen = rc.drawByBrezenham(x0, y1, x0, y0, ptsz, col)
-				tmpx = x0
-				x0 = x0 + ptsz
+				xPen, yPen = rc.drawByBrezenham(tmpX, y1, x0, y1, rc.PointSizeI, col)
+				xPen, yPen = rc.drawByBrezenham(x0, y1, x0, y0, rc.PointSizeI, col)
+				tmpX = x0
+				x0 = x0 + rc.PointSizeI
 				if x0 > x1 {
-					rety = y0
+					retY = y0
 					break
 				}
-				xpen, ypen = rc.drawByBrezenham(tmpx, y0, x0, y0, ptsz, col)
+				xPen, yPen = rc.drawByBrezenham(tmpX, y0, x0, y0, rc.PointSizeI, col)
 			}
 			// imitate pen moving to the origin point
-			xpen, ypen = rc.drawByBrezenham(tmpx, rety, origX, origY, ptsz, col)
+			xPen, yPen = rc.drawByBrezenham(tmpX, retY, origX, origY, rc.PointSizeI, col)
 		}
 	}
-	if xpen != origX || ypen != origY {
-		fmt.Println("Error during filled rectangle drawing: pen does not return to the origin point!")
+	if xPen != origX || yPen != origY {
+		fmt.Println("Error during filled rectangle drawing: pen did not returned to the origin point!")
 		os.Exit(700)
 	}
 	rc.FilledRctCounter++
@@ -430,7 +426,6 @@ func (rc *Render) filledRectangle(origX, origY, w, h int, col color.Color) {
 
 func (rc *Render) donut(origX, origY, dia, holeDia int, col color.Color) {
 	// performs donut (circle) aperture flash
-	ptsz := rc.PointSizeI
 	radius := dia / 2
 	holeRadius := holeDia / 2
 	if rc.DrawContours == true {
@@ -439,11 +434,11 @@ func (rc *Render) donut(origX, origY, dia, holeDia int, col color.Color) {
 			rc.circle(origX, origY, holeRadius, 1, rc.ContourColor)
 		}
 	}
-	radius = radius - (ptsz / 2)
+	radius = radius - (rc.PointSizeI / 2)
 	for {
-		rc.circle(origX, origY, radius, ptsz, col)
-		radius = radius - ptsz
-		if radius < holeRadius+(ptsz/2) {
+		rc.circle(origX, origY, radius, rc.PointSizeI, col)
+		radius = radius - rc.PointSizeI
+		if radius < holeRadius+(rc.PointSizeI/2) {
 			break
 		}
 	}
@@ -471,12 +466,6 @@ func (rc *Render) circle(x, y, r, ptsz int, col color.Color) {
 		rc.point(x-y1, y-x1, ptsz, col)
 		rc.point(x+x1, y-y1, ptsz, col)
 		rc.point(x+y1, y+x1, ptsz, col)
-		/*
-			img.Set(x-x1, y+y1, col)
-			img.Set(x-y1, y-x1, col)
-			img.Set(x+x1, y-y1, col)
-			img.Set(x+y1, y+x1, col)
-		*/
 		r = err
 		if r > x1 {
 			x1++
@@ -496,7 +485,7 @@ func (rc *Render) circle(x, y, r, ptsz int, col color.Color) {
 
 func (rc *Render) movePen(x1, y1, x2, y2 int, col color.Color) (int, int) {
 	rc.MovePenCounters++
-	rc.MovePenDistance += hyp(float64(x2-x1), float64(y2-y1))
+	rc.MovePenDistance += math.Hypot(float64(x2-x1), float64(y2-y1))
 	newX := x2
 	newY := y2
 	if rc.DrawMoves == true {
@@ -506,17 +495,17 @@ func (rc *Render) movePen(x1, y1, x2, y2 int, col color.Color) (int, int) {
 	return newX, newY
 }
 
-func (rc *Render) drawByBrezenham(x1, y1, x2, y2, ptsz int, col color.Color) (int, int) {
+func (rc *Render) drawByBrezenham(x1, y1, x2, y2, pointSize int, col color.Color) (int, int) {
 	// statistics
 	rc.LineBresCounter++
-	rc.LineBresLen += hyp(float64(x2-x1), float64(y2-y1))
-	newX, newY := rc.bresenham(x1, y1, x2, y2, ptsz, col)
+	rc.LineBresLen += math.Hypot(float64(x2-x1), float64(y2-y1))
+	newX, newY := rc.bresenham(x1, y1, x2, y2, pointSize, col)
 	rc.Plt.DrawLine(x1, y1, x2, y2)
 	return newX, newY
 }
 
 // Generalized with integer
-func (rc *Render) bresenham(x1, y1, x2, y2, ptsz int, col color.Color) (int, int) {
+func (rc *Render) bresenham(x1, y1, x2, y2, pointSize int, col color.Color) (int, int) {
 	var dx, dy, e, slope int
 	newX := x2
 	newY := y2
@@ -536,15 +525,15 @@ func (rc *Render) bresenham(x1, y1, x2, y2, ptsz int, col color.Color) (int, int
 
 	// Is line a point ?
 	case x1 == x2 && y1 == y2:
-		rc.point(x1, y1, ptsz, col)
+		rc.point(x1, y1, pointSize, col)
 
 		// Is line an horizontal ?
 	case y1 == y2:
 		for ; dx != 0; dx-- {
-			rc.point(x1, y1, ptsz, col)
+			rc.point(x1, y1, pointSize, col)
 			x1++
 		}
-		rc.point(x1, y1, ptsz, col)
+		rc.point(x1, y1, pointSize, col)
 
 		// Is line a vertical ?
 	case x1 == x2:
@@ -552,34 +541,34 @@ func (rc *Render) bresenham(x1, y1, x2, y2, ptsz int, col color.Color) (int, int
 			y1, y2 = y2, y1
 		}
 		for ; dy != 0; dy-- {
-			rc.point(x1, y1, ptsz, col)
+			rc.point(x1, y1, pointSize, col)
 			y1++
 		}
-		rc.point(x1, y1, ptsz, col)
+		rc.point(x1, y1, pointSize, col)
 
 		// Is line a diagonal ?
 	case dx == dy:
 		if y1 < y2 {
 			for ; dx != 0; dx-- {
-				rc.point(x1, y1, ptsz, col)
+				rc.point(x1, y1, pointSize, col)
 				x1++
 				y1++
 			}
 		} else {
 			for ; dx != 0; dx-- {
-				rc.point(x1, y1, ptsz, col)
+				rc.point(x1, y1, pointSize, col)
 				x1++
 				y1--
 			}
 		}
-		rc.point(x1, y1, ptsz, col)
+		rc.point(x1, y1, pointSize, col)
 
 		// wider than high ?
 	case dx > dy:
 		if y1 < y2 {
 			dy, e, slope = 2*dy, dx, 2*dx
 			for ; dx != 0; dx-- {
-				rc.point(x1, y1, ptsz, col)
+				rc.point(x1, y1, pointSize, col)
 				x1++
 				e -= dy
 				if e < 0 {
@@ -590,7 +579,7 @@ func (rc *Render) bresenham(x1, y1, x2, y2, ptsz int, col color.Color) (int, int
 		} else {
 			dy, e, slope = 2*dy, dx, 2*dx
 			for ; dx != 0; dx-- {
-				rc.point(x1, y1, ptsz, col)
+				rc.point(x1, y1, pointSize, col)
 				x1++
 				e -= dy
 				if e < 0 {
@@ -599,14 +588,14 @@ func (rc *Render) bresenham(x1, y1, x2, y2, ptsz int, col color.Color) (int, int
 				}
 			}
 		}
-		rc.point(x2, y2, ptsz, col)
+		rc.point(x2, y2, pointSize, col)
 
 		// higher than wide.
 	default:
 		if y1 < y2 {
 			dx, e, slope = 2*dx, dy, 2*dy
 			for ; dy != 0; dy-- {
-				rc.point(x1, y1, ptsz, col)
+				rc.point(x1, y1, pointSize, col)
 				y1++
 				e -= dx
 				if e < 0 {
@@ -617,7 +606,7 @@ func (rc *Render) bresenham(x1, y1, x2, y2, ptsz int, col color.Color) (int, int
 		} else {
 			dx, e, slope = 2*dx, dy, 2*dy
 			for ; dy != 0; dy-- {
-				rc.point(x1, y1, ptsz, col)
+				rc.point(x1, y1, pointSize, col)
 				y1--
 				e -= dx
 				if e < 0 {
@@ -626,16 +615,15 @@ func (rc *Render) bresenham(x1, y1, x2, y2, ptsz int, col color.Color) (int, int
 				}
 			}
 		}
-		rc.point(x2, y2, ptsz, col)
+		rc.point(x2, y2, pointSize, col)
 	}
 	return newX, newY
 }
 
 // ARC functions
-func (rc *Render) Arc(x1, y1, x2, y2, i, j float64, aps int, ipm gerbparser.IPmode, qm gerbparser.Quadmode, col color.Color) bool {
-	//	var signI, signJ int = 0, 0
-	var xc, yc float64
-	ptsz := rc.PointSizeI
+func (rc *Render) arc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm gerbparser.IPmode, qm gerbparser.Quadmode, col color.Color) bool {
+
+	var xC, yC float64
 
 	if qm == gerbparser.QuadmodeSingle {
 		// we have to find the sign of the I and J
@@ -646,13 +634,13 @@ func (rc *Render) Arc(x1, y1, x2, y2, i, j float64, aps int, ipm gerbparser.IPmo
 		rc.point(int(x1), int(y1), 1, rc.ContourColor)
 		rc.point(int(x2), int(y2), 1, rc.ContourColor)
 	}
-	xc = x1 + i
-	yc = y1 + j
-	r := hyp(i, j)
-	rt := hyp(x2-xc, y2-yc)
+	xC = x1 + i
+	yC = y1 + j
+	r := math.Hypot(i, j)
+	rt := math.Hypot(x2-xC, y2-yC)
 
-	dr := rt - r
-	if math.Abs(dr) > float64(ptsz) {
+	dR := rt - r
+	if math.Abs(dR) > float64(rc.PointSizeI) {
 		fmt.Println("G75 diff.=", rt-r)
 		fmt.Println(x1, y1, x2, y2, i, j)
 		return true
@@ -660,101 +648,96 @@ func (rc *Render) Arc(x1, y1, x2, y2, i, j float64, aps int, ipm gerbparser.IPmo
 
 	r = (r + rt) / 2
 
-	cosfi1 := (x1 - xc) / r
-	if cosfi1 > 1 {
-		cosfi1 = 1
-	} else if cosfi1 < -1 {
-		cosfi1 = -1
+	cosPhi1 := (x1 - xC) / r
+	if cosPhi1 > 1 {
+		cosPhi1 = 1
+	} else if cosPhi1 < -1 {
+		cosPhi1 = -1
 	}
 
-	fi1 := rad2Deg(math.Acos(cosfi1))
-	if float64(y1)-yc < 0 {
-		fi1 = 360.0 - fi1
+	Phi1 := rad2Deg(math.Acos(cosPhi1))
+	if float64(y1)-yC < 0 {
+		Phi1 = 360.0 - Phi1
 	}
 
-	cosfi2 := (x2 - xc) / r
-	if cosfi2 > 1 {
-		cosfi2 = 1
-	} else if cosfi2 < -1 {
-		cosfi2 = -1
+	cosPhi2 := (x2 - xC) / r
+	if cosPhi2 > 1 {
+		cosPhi2 = 1
+	} else if cosPhi2 < -1 {
+		cosPhi2 = -1
 	}
-	fi2 := rad2Deg(math.Acos(cosfi2))
-	if float64(y2)-yc < 0 {
-		fi2 = 360.0 - fi2
+	Phi2 := rad2Deg(math.Acos(cosPhi2))
+	if float64(y2)-yC < 0 {
+		Phi2 = 360.0 - Phi2
 	}
 
-	nr := aps / ptsz // how many arcs to do..
-	r = r + (float64(aps) / 2) - (float64(ptsz) / 2)
-	for i := 0; i < nr; i++ {
-		r := r - float64(i*ptsz)
+	numArcs := apertureSize / rc.PointSizeI // how many arcs to do..
+	r = r + (float64(apertureSize) / 2) - (float64(rc.PointSizeI) / 2)
+	for i := 0; i < numArcs; i++ {
+		r := r - float64(i*rc.PointSizeI)
+
 		if ipm == gerbparser.IPModeCCwC {
 			var ppx = 0
 			var ppy = 0
-			if fi1 > fi2 {
-				fi1 = -(360.0 - fi1)
+			if Phi1 > Phi2 {
+				Phi1 = -(360.0 - Phi1)
 			}
-			plx1 := int(math.Round(x1))
-			plx2 := int(math.Round(x2))
-			ply1 := int(math.Round(y1))
-			ply2 := int(math.Round(y2))
-			plr := int(math.Round(r))
-			plfi1 := int(math.Round(fi1))
-			plfi2 := int(math.Round(fi2))
+			plX1 := int(math.Round(x1))
+			plX2 := int(math.Round(x2))
+			plY1 := int(math.Round(y1))
+			plY2 := int(math.Round(y2))
+			plR := int(math.Round(r))
+			plPhi1 := int(math.Round(Phi1))
+			plPhi2 := int(math.Round(Phi2))
 
-			rc.Plt.Arc(plx1, ply1, plx2, ply2, plr, plfi1, plfi2, ipm)
+			rc.Plt.Arc(plX1, plY1, plX2, plY2, plR, plPhi1, plPhi2, ipm)
 
-			angle := fi1
+			angle := Phi1
 			for {
-				ax := int(math.Round(r*math.Cos(deg2Rad(angle)) + xc))
-				ay := int(math.Round(r*math.Sin(deg2Rad(angle)) + yc))
+				ax := int(math.Round(r*math.Cos(deg2Rad(angle)) + xC))
+				ay := int(math.Round(r*math.Sin(deg2Rad(angle)) + yC))
 				if ppx != ax || ppy != ay {
-					//					img.Set(ax, ay, col)
-					rc.circle(ax, ay, ptsz, 1, col)
+					rc.circle(ax, ay, rc.PointSizeI, 1, col)
 				}
-				//			fmt.Println(angle, ax, ay)
 				angle++
-				if angle > fi2 {
+				if angle > Phi2 {
 					break
 				}
 				ppx = ax
 				ppy = ay
 			}
-			//		fmt.Println( fi1, "ccw ", fi2)
 
 		} else if ipm == gerbparser.IPModeCwC {
 			var ppx = 0
 			var ppy = 0
-			if fi1 < fi2 {
-				fi2 = -(360.0 - fi2)
+			if Phi1 < Phi2 {
+				Phi2 = -(360.0 - Phi2)
 			}
 
-			plx1 := int(math.Round(x1))
-			plx2 := int(math.Round(x2))
-			ply1 := int(math.Round(y1))
-			ply2 := int(math.Round(y2))
-			plr := int(math.Round(r))
-			plfi1 := int(math.Round(fi1))
-			plfi2 := int(math.Round(fi2))
+			plX1 := int(math.Round(x1))
+			plX2 := int(math.Round(x2))
+			plY1 := int(math.Round(y1))
+			plY2 := int(math.Round(y2))
+			plR := int(math.Round(r))
+			plPhi1 := int(math.Round(Phi1))
+			plPhi2 := int(math.Round(Phi2))
 
-			rc.Plt.Arc(plx1, ply1, plx2, ply2, plr, plfi1, plfi2, ipm)
+			rc.Plt.Arc(plX1, plY1, plX2, plY2, plR, plPhi1, plPhi2, ipm)
 
-			angle := fi1
+			angle := Phi1
 			for {
-				ax := int(math.Round(r*math.Cos(deg2Rad(angle)) + xc))
-				ay := int(math.Round(r*math.Sin(deg2Rad(angle)) + yc))
+				ax := int(math.Round(r*math.Cos(deg2Rad(angle)) + xC))
+				ay := int(math.Round(r*math.Sin(deg2Rad(angle)) + yC))
 				if ppx != ax || ppy != ay {
-					//					img.Set(ax, ay, col)
-					rc.circle(ax, ay, ptsz, 1, col)
+					rc.circle(ax, ay, rc.PointSizeI, 1, col)
 				}
-				//			fmt.Println(angle, ax, ay)
 				angle--
-				if angle < fi2 {
+				if angle < Phi2 {
 					break
 				}
 				ppx = ax
 				ppy = ay
 			}
-			//		fmt.Println(fi1, "cw ", fi2)
 		}
 	}
 
@@ -780,16 +763,6 @@ func (rc *Render) obRound(centerX, centerY, width, height, holeDia int, color co
 		rc.donut(centerX, yd2, sideDia, holeDia, color)
 	}
 	rc.ObRoundCounter++
-}
-
-//
-func quad(a float64) float64 {
-	return a * a
-}
-
-//
-func hyp(a, b float64) float64 {
-	return math.Sqrt(quad(a) + quad(b))
 }
 
 //
@@ -845,24 +818,26 @@ func (rc *Render) StepProcessor(stepData *gerbparser.State) {
 	if stepData.Region != nil {
 		// process region
 		if rc.ProcessingRegion == false {
-			rc.BeginRegion()
+			rc.beginRegion()
 		}
 		if rc.addStepToRegion(stepData) == stepData.Region.GetNumXY() {
 			// we can process region
-			rc.RenderPoly()
-			rc.EndRegion()
+			rc.renderPoly()
+			rc.endRegion()
 		}
 	} else {
 		var stepColor color.RGBA
 		switch stepData.Action {
-		case gerbparser.OpcodeD01: // draw
+		case gerbparser.OpcodeD01_DRAW: // draw
 			if stepData.Polarity == gerbparser.PoltypeDark {
 				stepColor = rc.LineColor
 			} else {
 				stepColor = rc.ClearColor
 			}
-			var aps int
-			_ = aps
+
+			var apertureSize int
+			_ = apertureSize
+
 			if abs(Xc-Xp) < (4*rc.PointSizeI) && abs(Yc-Yp) < (4*rc.PointSizeI) {
 				stepData.IpMode = gerbparser.IPModeLinear
 			}
@@ -870,9 +845,9 @@ func (rc *Render) StepProcessor(stepData *gerbparser.State) {
 				// linear interpolation
 				if rc.DrawOnlyRegionsMode != true {
 					if stepData.CurrentAp.Type == gerbparser.AptypeCircle {
-						aps = transformCoord(stepData.CurrentAp.Diameter, rc.XRes)
-						//_ = aps
-						rc.drawByCircleAperture(Xp, Yp, Xc, Yc, aps, stepColor)
+						apertureSize = transformCoord(stepData.CurrentAp.Diameter, rc.XRes)
+						//_ = apertureSize
+						rc.drawByCircleAperture(Xp, Yp, Xc, Yc, apertureSize, stepColor)
 					} else if stepData.CurrentAp.Type == gerbparser.AptypeRectangle {
 						// draw with rectangle aperture
 						w := transformCoord(stepData.CurrentAp.XSize, rc.XRes)
@@ -887,15 +862,25 @@ func (rc *Render) StepProcessor(stepData *gerbparser.State) {
 				// non-linear interpolation
 				if rc.DrawOnlyRegionsMode != true {
 					if stepData.CurrentAp.Type == gerbparser.AptypeCircle {
-						aps = transformCoord(stepData.CurrentAp.Diameter, rc.XRes)
+						apertureSize = transformCoord(stepData.CurrentAp.Diameter, rc.XRes)
 						// Arcs require floats!
-						if rc.Arc(fXp, fYp, fXc, fYc, fI, fJ, aps, stepData.IpMode, stepData.QMode, rc.RegionColor) == true {
+						if rc.arc(fXp,
+							fYp,
+							fXc,
+							fYc,
+							fI,
+							fJ,
+							apertureSize,
+							stepData.IpMode,
+							stepData.QMode,
+// TODO
+							rc.RegionColor) == true {
 							fmt.Println(stepData)
 							fmt.Println(stepData.Coord)
 							os.Exit(998)
 						}
-						rc.donut(Xp, Yp, aps, 0, stepColor)
-						rc.donut(Xc, Yc, aps, 0, stepColor)
+						rc.donut(Xp, Yp, apertureSize, 0, stepColor)
+						rc.donut(Xc, Yc, apertureSize, 0, stepColor)
 					} else if stepData.CurrentAp.Type == gerbparser.AptypeRectangle {
 						fmt.Println("Arc drawing by rectangle aperture is not supported now.")
 					} else {
@@ -905,9 +890,9 @@ func (rc *Render) StepProcessor(stepData *gerbparser.State) {
 				}
 			}
 			//
-		case gerbparser.OpcodeD02: // move
+		case gerbparser.OpcodeD02_MOVE: // move
 			rc.movePen(Xp, Yp, Xc, Yc, rc.MovePenColor)
-		case gerbparser.OpcodeD03: // flash
+		case gerbparser.OpcodeD03_FLASH: // flash
 			if rc.DrawOnlyRegionsMode != true {
 				rc.movePen(Xp, Yp, Xc, Yc, rc.MovePenColor)
 				if stepData.Polarity == gerbparser.PoltypeDark {
@@ -968,62 +953,64 @@ func checkError(err error, exitCode int) {
 *********************** region processor ***********************************
  */
 
-var curreg []gerbparser.State
+var currentRegion []gerbparser.State
 var polX []float64
 var polY []float64
 var polyCorners int
 
-func (rc *Render) BeginRegion() {
+func (rc *Render) beginRegion() {
 	rc.ProcessingRegion = true
-	curreg = make([]gerbparser.State, 0)
+	currentRegion = make([]gerbparser.State, 0)
 }
 
-func (rc *Render) EndRegion() {
+func (rc *Render) endRegion() {
 	rc.ProcessingRegion = false
 }
 
 func (rc *Render) addStepToRegion(step *gerbparser.State) int {
-	curreg = append(curreg, *step)
-	return len(curreg)
+	currentRegion = append(currentRegion, *step)
+	return len(currentRegion)
 }
 
-func (rc *Render) RenderPoly() {
+func (rc *Render) renderPoly() {
 
-	if curreg[0].Action == gerbparser.OpcodeD02 {
-		curreg = curreg[1:]
+	if currentRegion[0].Action == gerbparser.OpcodeD02_MOVE {
+		currentRegion = currentRegion[1:]
 	}
-	xxp := curreg[0].PrevCoord.GetX()
-	yyp := curreg[0].PrevCoord.GetY()
+	xxPrev := currentRegion[0].PrevCoord.GetX()
+	yyPrev := currentRegion[0].PrevCoord.GetY()
 	var i int
-	for i = 0; i < len(curreg); i++ {
-		if float64eq1mil(curreg[i].Coord.GetX(), xxp) && float64eq1mil(curreg[i].Coord.GetY(), yyp) {
-			fmt.Println("Closed segment found with  ", i, "vertexes")
-			if i < len(curreg)-2 {
+	for i = 0; i < len(currentRegion); i++ {
+		if float64eq1mil(currentRegion[i].Coord.GetX(), xxPrev) && float64eq1mil(currentRegion[i].Coord.GetY(), yyPrev) {
+			if rc.PrintRegionInfo == true {
+				fmt.Println("Closed segment found with  ", i, "vertexes")
+			}
+			if i < len(currentRegion)-2 {
 				fmt.Println("more than one segment in the region!")
 			}
 			break
 		}
-		if i == len(curreg)-1 {
+		if i == len(currentRegion)-1 {
 			// the segment is not closed!
-			fmt.Println(xxp, yyp)
-			curreg[0].Coord.Print()
-			curreg[len(curreg)-2].Coord.Print()
-			curreg[len(curreg)-1].Coord.Print()
+			fmt.Println(xxPrev, yyPrev)
+			currentRegion[0].Coord.Print()
+			currentRegion[len(currentRegion)-2].Coord.Print()
+			currentRegion[len(currentRegion)-1].Coord.Print()
 			os.Exit(1000)
 		}
 	}
 	// let's create a array of nodes (vertices)
 	polX = make([]float64, 0)
 	polY = make([]float64, 0)
-	polyCorners = len(curreg)
+	polyCorners = len(currentRegion)
 	minpolY := 100000000.0
 	maxpolY := 0.0
 	for j := 0; j < polyCorners; j++ {
-		if curreg[j].IpMode != gerbparser.IPModeLinear {
-			rc.interpolate(&minpolY, &maxpolY, &curreg[j])
+		if currentRegion[j].IpMode != gerbparser.IPModeLinear {
+			rc.interpolate(&minpolY, &maxpolY, &currentRegion[j])
 		} else {
-			xj := (curreg[j].Coord.GetX() - rc.MinX) / rc.XRes
-			yj := (curreg[j].Coord.GetY() - rc.MinY) / rc.YRes
+			xj := (currentRegion[j].Coord.GetX() - rc.MinX) / rc.XRes
+			yj := (currentRegion[j].Coord.GetY() - rc.MinY) / rc.YRes
 			if yj < minpolY {
 				minpolY = yj
 			}
@@ -1041,13 +1028,11 @@ func (rc *Render) RenderPoly() {
 	var pixelY int
 
 	// take into account real plotter pen point size
-	ystart := int(math.Round(minpolY + rc.PointSize/2))
-	ystop := int(math.Round(maxpolY - rc.PointSize/2))
-	xmargin := int(math.Round(rc.PointSize / 2))
-	psz := rc.PointSizeI
-	//	psz := int(math.Round(rp.rc.PointSize))
+	startY := int(math.Round(minpolY + rc.PointSize/2))
+	stopY := int(math.Round(maxpolY - rc.PointSize/2))
+	marginX := int(math.Round(rc.PointSize / 2))
 
-	for pixelY = ystart; pixelY < ystop; /*pixelY++*/ pixelY += psz {
+	for pixelY = startY; pixelY < stopY; pixelY += rc.PointSizeI {
 		fPixelY := float64(pixelY)
 		nodes = 0
 		j := polyCorners - 1
@@ -1076,8 +1061,8 @@ func (rc *Render) RenderPoly() {
 		}
 		//  Fill the pixels between node pairs.
 		for i = 0; i < nodes; i += 2 {
-			rc.drawByBrezenham(nodeX[i]+xmargin, pixelY, nodeX[i+1]-xmargin, pixelY, psz, rc.RegionColor)
-			rc.Plt.DrawLine(nodeX[i]+xmargin, pixelY, nodeX[i+1]-xmargin, pixelY)
+			rc.drawByBrezenham(nodeX[i]+marginX, pixelY, nodeX[i+1]-marginX, pixelY, rc.PointSizeI, rc.RegionColor)
+			rc.Plt.DrawLine(nodeX[i]+marginX, pixelY, nodeX[i+1]-marginX, pixelY)
 		}
 	}
 	return
@@ -1109,7 +1094,7 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 
 	if math.Abs(dr) > rc.PointSize {
 		fmt.Println("G75 diff.=", rt-r)
-		panic("func interpolate in the package regions. Deviation more than pointsize.")
+		panic("(rc *Render) interpolate(): Deviation more than pointSize.")
 	}
 	r = (r + rt) / 2
 
@@ -1182,7 +1167,7 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 			}
 		}
 	} else {
-		panic("func interpolate in the package regions. Bad IpMode.")
+		panic("(rc *Render) interpolate(): Bad IpMode.")
 	}
 
 }
@@ -1195,8 +1180,8 @@ func (rc *Render) addToCorners(ax, ay float64) (float64, bool) {
 		polY = append(polY, ay)
 		return ay, true
 	} else {
-		le := len(polX) - 1 // last element
-		if (math.Abs(ax-polX[le]) > rc.PointSize) || (math.Abs(ay-polY[le]) > rc.PointSize) {
+		lastElement := len(polX) - 1 // last element
+		if (math.Abs(ax-polX[lastElement]) > rc.PointSize) || (math.Abs(ay-polY[lastElement]) > rc.PointSize) {
 			polX = append(polX, ax)
 			polY = append(polY, ay)
 			return ay, true

@@ -26,6 +26,7 @@ const (
 	CfgRenderDrawContours    string = "renderer.DrawContours"
 	CfgRenderDrawMoves       string = "renderer.DrawMoves"
 	CfgRenderDrawOnlyRegions string = "renderer.DrawOnlyRegions"
+	CfgPrintRegionInfo string = "renderer.PrintRegionInfo"
 )
 
 func SetDefaults(v *viper.Viper) {
@@ -56,6 +57,7 @@ func SetDefaults(v *viper.Viper) {
 	v.SetDefault(CfgRenderDrawContours, false)
 	v.SetDefault(CfgRenderDrawMoves, false)
 	v.SetDefault(CfgRenderDrawOnlyRegions, false)
+	v.SetDefault(CfgPrintRegionInfo, false)
 
 	v.SetDefault(CfgPlotterPenSizes, []float64{0.07, 0.07, 0.07, 0.00})
 	v.SetDefault(CfgPlotterXRes, 0.025)

@@ -227,10 +227,10 @@ type XY struct {
 }
 
 func NewXY() *XY {
-	retval := new(XY)
-	retval.SetX(0)
-	retval.SetY(0)
-	return retval
+	retVal := new(XY)
+	retVal.SetX(0)
+	retVal.SetY(0)
+	return retVal
 }
 
 func (xy *XY) Print() {
@@ -782,9 +782,9 @@ const (
 type Acttype int
 
 const (
-	OpcodeD01  Acttype = iota + 1
-	OpcodeD02
-	OpcodeD03
+	OpcodeD01_DRAW Acttype = iota + 1
+	OpcodeD02_MOVE
+	OpcodeD03_FLASH
 	OpcodeStop
 )
 
@@ -945,11 +945,11 @@ func (step *State) CreateStep(
 	}
 	switch {
 	case strings.HasSuffix(*inString, "D01*"):
-		step.Action = OpcodeD01
+		step.Action = OpcodeD01_DRAW
 	case strings.HasSuffix(*inString, "D02*"):
-		step.Action = OpcodeD02
+		step.Action = OpcodeD02_MOVE
 	case strings.HasSuffix(*inString, "D03*"):
-		step.Action = OpcodeD03
+		step.Action = OpcodeD03_FLASH
 	}
 	if strings.HasSuffix(
 		*inString, "D01*") || strings.HasSuffix(
@@ -1045,3 +1045,4 @@ func CheckError(err error, exitcode int) {
 /*
 ********************* aperture blocks ******************************
  */
+
