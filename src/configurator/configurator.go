@@ -59,6 +59,7 @@ func SetDefaults(v *viper.Viper) {
 	v.SetDefault(CfgRenderDrawOnlyRegions, false)
 	v.SetDefault(CfgPrintRegionInfo, false)
 
+	// TODO: something wrong with the default values
 	v.SetDefault(CfgPlotterPenSizes, []float64{0.07, 0.07, 0.07, 0.00})
 	v.SetDefault(CfgPlotterXRes, 0.025)
 	v.SetDefault(CfgPlotterYRes, 0.025)

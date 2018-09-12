@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	MaxInt   = int(^uint(0) >> 1)
-	MinInt   = int(-MaxInt - 1)
+	MaxInt = int(^uint(0) >> 1)
+	MinInt = int(-MaxInt - 1)
 )
 
 /*
@@ -39,6 +39,8 @@ type Render struct {
 	LimitsX1     int
 	LimitsY1     int
 
+	YNeedsFlip bool
+
 	// point size in terms of real plotter pen points
 	PointSize  float64
 	PointSizeI int
@@ -46,6 +48,8 @@ type Render struct {
 	// pcb properties
 	MinX float64
 	MinY float64
+	MaxX float64
+	MaxY float64
 	// png image properties
 	Img          *image.NRGBA
 	ApColor      color.RGBA
@@ -63,7 +67,7 @@ type Render struct {
 	DrawContours        bool
 	DrawMoves           bool
 	DrawOnlyRegionsMode bool
-	PrintRegionInfo		bool
+	PrintRegionInfo     bool
 
 	//statistic
 	LineBresCounter   int
@@ -74,17 +78,20 @@ type Render struct {
 	CircleLen         float64
 	FilledRctCounter  int
 	ObRoundCounter    int
+
+	// region being processed
+	regionPtr *Region
 }
 
-func NewRender(plotter *plotter.Plotter, viper *viper.Viper) *Render {
+func NewRender(plotter *plotter.Plotter, viper *viper.Viper, minX, minY, maxX, maxY float64) *Render {
 	retVal := new(Render)
-	retVal.Init(plotter, viper)
+	retVal.Init(plotter, viper,  minX, minY, maxX, maxY)
 	return retVal
 }
 
-func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper) {
+func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper,  minX, minY, maxX, maxY float64) {
 	// physical plotter single step size
-	rc.XRes = viper.GetFloat64(configurator.CfgPlotterYRes)
+	rc.XRes = viper.GetFloat64(configurator.CfgPlotterXRes)
 	rc.YRes = viper.GetFloat64(configurator.CfgPlotterYRes)
 	arr := viper.Get(configurator.CfgPlotterPenSizes)
 	//	fmt.Println(reflect.TypeOf(arr))
@@ -102,8 +109,29 @@ func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper) {
 	rc.LimitsY0 = 0
 	rc.CanvasWidth = 297
 	rc.CanvasHeight = 210
-	rc.LimitsX1 = int(float64(rc.CanvasWidth) / float64(rc.XRes))
-	rc.LimitsY1 = int(float64(rc.CanvasHeight) / float64(rc.YRes))
+
+	//rc.LimitsX1 = int(float64(rc.CanvasWidth) / float64(rc.XRes))
+	//rc.LimitsY1 = int(float64(rc.CanvasHeight) / float64(rc.YRes))
+
+	margin := 10.0
+
+	rc.MinX = minX - margin
+	rc.MinY = minY - margin
+	rc.MaxX = maxX + margin
+	rc.MaxY = maxY + margin
+
+
+	rc.LimitsX1 = int((rc.MaxX - rc.MinX) / float64(rc.XRes))
+	rc.LimitsY1 = int((rc.MaxY - rc.MinY) / float64(rc.YRes))
+
+	if rc.LimitsX1 > int(float64(rc.CanvasWidth) / float64(rc.XRes)) ||
+		rc.LimitsY1 > int(float64(rc.CanvasHeight) / float64(rc.YRes)) {
+		fmt.Println("Warning: the PCB size is bigger than plotter working area!")
+		fmt.Println("the PCB will be truncated.")
+	}
+
+
+	rc.YNeedsFlip = false
 
 	// point size in terms of real plotter pen points
 	rc.PointSize = rc.PenWidth / rc.XRes
@@ -118,7 +146,7 @@ func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper) {
 	rc.MissedColor = color.RGBA{255, 0, 255, 255}
 	rc.ContourColor = color.RGBA{0, 255, 0, 255}
 	rc.Img = image.NewNRGBA(image.Rect(rc.LimitsX0, rc.LimitsY0, rc.LimitsX1, rc.LimitsY1))
-//	rc.Img = image.NewNRGBA(image.Rect(0,0,1,1))
+	//	rc.Img = image.NewNRGBA(image.Rect(0,0,1,1))
 	rc.Plt = plt
 
 	// drawing modes setting
@@ -131,9 +159,30 @@ func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper) {
 	return
 }
 
-func (rc *Render) SetMinXY(x, y float64) {
-	rc.MinX = x
-	rc.MinY = y
+//func (rc *Render) SetMinXY(x, y float64) {
+//	rc.MinX = x
+//	rc.MinY = y
+//}
+//
+//func (rc *Render) SetMaxXY(x, y float64) {
+//	rc.MaxX = x
+//	rc.MaxY = y
+//}
+
+func (rc *Render) DrawFrame() {
+
+	if rc.MaxY <= 0 {
+		rc.YNeedsFlip = true
+	}
+
+	x2 := transformCoord(rc.MaxX-rc.MinX, rc.XRes)
+	y2 := transformCoord(rc.MaxY-rc.MinY, rc.YRes)
+	frameColor := color.RGBA{127, 127, 127, 255}
+	rc.bresenhamWithPattern(0, 0, x2, 0, 1, frameColor, 10, 10)
+	rc.bresenhamWithPattern(x2, 0, x2, y2, 1, frameColor, 10, 10)
+	rc.bresenhamWithPattern(x2, y2, 0, y2, 1, frameColor, 10, 10)
+	rc.bresenhamWithPattern(0, y2, 0, 0, 1, frameColor, 10, 10)
+
 }
 
 /*----------------------------------------------*/
@@ -173,12 +222,11 @@ func (rc *Render) point(x, y, pointSize int, col color.Color) {
 func (rc *Render) drawByRectangleAperture(x0, y0, x1, y1, apSizeX, apSizeY int, col color.Color) {
 
 	var w, h, xOrigin, yOrigin int
-	ptsz := rc.PointSizeI
 
 	if x0 != x1 && y0 != y1 {
 		fmt.Println("Drawing by rectangular aperture with arbitrary angle is not supported!")
-		rc.circle(x0, y0, apSizeX/2, ptsz, rc.MissedColor)
-		rc.circle(x1, y1, apSizeX/2, ptsz, rc.MissedColor)
+		rc.circle(x0, y0, apSizeX/2, rc.PointSizeI, rc.MissedColor)
+		rc.circle(x1, y1, apSizeX/2, rc.PointSizeI, rc.MissedColor)
 	}
 	if x0 > x1 {
 		x0, x1 = x1, x0
@@ -193,10 +241,10 @@ func (rc *Render) drawByRectangleAperture(x0, y0, x1, y1, apSizeX, apSizeY int, 
 		h = y1 - y0 + apSizeY
 		w = apSizeX
 		// draw by pen from x0,y0 to rectangle's origin
-		rc.drawByBrezenham(x0, y0, xOrigin, yOrigin, ptsz, col)
+		rc.drawByBrezenham(x0, y0, xOrigin, yOrigin, rc.PointSizeI, col)
 		rc.filledRectangle(xOrigin, yOrigin, w, h, col)
 		// draw back by pen from rectangle's origin to x1, y1
-		rc.drawByBrezenham(xOrigin, yOrigin, x1, y1, ptsz, col)
+		rc.drawByBrezenham(xOrigin, yOrigin, x1, y1, rc.PointSizeI, col)
 		return
 	}
 	if y0 == y1 { // horizontal draw
@@ -205,9 +253,9 @@ func (rc *Render) drawByRectangleAperture(x0, y0, x1, y1, apSizeX, apSizeY int, 
 		w = x1 - x0 + apSizeX
 		h = apSizeY
 		// draw by pen from x0,y0 to rectangle's origin
-		rc.drawByBrezenham(x0, y0, xOrigin, yOrigin, ptsz, col)
+		rc.drawByBrezenham(x0, y0, xOrigin, yOrigin, rc.PointSizeI, col)
 		rc.filledRectangle(xOrigin, yOrigin, w, h, col)
-		rc.drawByBrezenham(xOrigin, yOrigin, x1, y1, ptsz, col)
+		rc.drawByBrezenham(xOrigin, yOrigin, x1, y1, rc.PointSizeI, col)
 		return
 	}
 }
@@ -311,8 +359,8 @@ const strat int = 1 // zig-zag
 // draws a filled rectangle
 func (rc *Render) filledRectangle(origX, origY, w, h int, col color.Color) {
 
-	xPen := origX   // real pen position
-	yPen := origY   // real pen position
+	xPen := origX // real pen position
+	yPen := origY // real pen position
 
 	// performs rectangle aperture flash
 	x0 := origX - (w / 2)
@@ -620,12 +668,62 @@ func (rc *Render) bresenham(x1, y1, x2, y2, pointSize int, col color.Color) (int
 	return newX, newY
 }
 
+// draw line using pattern
+// dash - length of the dash in pixels
+// space - length of the space in pixels
+func (rc *Render) bresenhamWithPattern(x1, y1, x2, y2, pointSize int, col color.Color, dash, space int) (int, int) {
+	length := int(math.Hypot(float64(x2-x1), float64(y2-y1)))
+	if length == 0 {
+		return x1, y1
+	}
+	if x1 > x2 {
+		x1, y1, x2, y2 = x2, y2, x1, y1
+	}
+
+	dx := x2 - x1
+	dy := y2 - y1
+	signdY := 1
+
+	if dy < 0 {
+		dy = -dy
+		signdY = -1
+	}
+
+	phi := math.Acos(float64(dx) / float64(length))
+
+	steps := length / (dash + space)
+	x01 := x1
+	y01 := y1
+	dashX := int(float64(dash) * math.Cos(phi))
+	dashY := int(float64(dash)*math.Sin(phi)) * signdY
+	spaceX := int(float64(space) * math.Cos(phi))
+	spaceY := int(float64(space)*math.Sin(phi)) * signdY
+
+	for steps > 0 {
+		x11 := x01 + dashX
+		y11 := y01 + dashY
+		x01, y01 = rc.bresenham(x01, y01, x11, y11, pointSize, col)
+		x01 += spaceX
+		y01 += spaceY
+		steps--
+	}
+	// x01, y01 here are the coordinates of the last dash line
+	if x01+dashX > x2 {
+		dashX = x2 - x01
+		dashY = y2 - y01
+	}
+	x11 := x01 + dashX
+	y11 := y01 + dashY
+
+	return rc.bresenham(x01, y01, x11, y11, pointSize, col)
+}
+
 // ARC functions
-func (rc *Render) arc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm gerbparser.IPmode, qm gerbparser.Quadmode, col color.Color) bool {
+func (rc *Render) arc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm gerbparser.IPmode, qm gerbparser.QuadMode, col color.Color) bool {
 
 	var xC, yC float64
 
-	if qm == gerbparser.QuadmodeSingle {
+	if qm == gerbparser.QuadModeSingle {
 		// we have to find the sign of the I and J
 		fmt.Println("G74 hook")
 		return false
@@ -789,7 +887,9 @@ func abs(x int) int {
 /*
 **************************** step processor *******************************
  */
-func (rc *Render) StepProcessor(stepData *gerbparser.State) {
+func (rc *Render) ProcessStep(stepData *gerbparser.State) {
+
+
 	Xc := transformCoord(stepData.Coord.GetX()-rc.MinX, rc.XRes)
 	Yc := transformCoord(stepData.Coord.GetY()-rc.MinY, rc.YRes)
 	var (
@@ -817,19 +917,22 @@ func (rc *Render) StepProcessor(stepData *gerbparser.State) {
 
 	if stepData.Region != nil {
 		// process region
-		if rc.ProcessingRegion == false {
-			rc.beginRegion()
+		//		if rc.ProcessingRegion == false {
+		//			rc.NewRegion()
+		if rc.regionPtr == nil {
+			rc.regionPtr = newRegion()
 		}
 		if rc.addStepToRegion(stepData) == stepData.Region.GetNumXY() {
 			// we can process region
 			rc.renderPoly()
-			rc.endRegion()
+			//			rc.endRegion()
+			rc.regionPtr = nil
 		}
 	} else {
 		var stepColor color.RGBA
 		switch stepData.Action {
 		case gerbparser.OpcodeD01_DRAW: // draw
-			if stepData.Polarity == gerbparser.PoltypeDark {
+			if stepData.Polarity == gerbparser.PolTypeDark {
 				stepColor = rc.LineColor
 			} else {
 				stepColor = rc.ClearColor
@@ -873,7 +976,7 @@ func (rc *Render) StepProcessor(stepData *gerbparser.State) {
 							apertureSize,
 							stepData.IpMode,
 							stepData.QMode,
-// TODO
+							// TODO
 							rc.RegionColor) == true {
 							fmt.Println(stepData)
 							fmt.Println(stepData.Coord)
@@ -895,7 +998,7 @@ func (rc *Render) StepProcessor(stepData *gerbparser.State) {
 		case gerbparser.OpcodeD03_FLASH: // flash
 			if rc.DrawOnlyRegionsMode != true {
 				rc.movePen(Xp, Yp, Xc, Yc, rc.MovePenColor)
-				if stepData.Polarity == gerbparser.PoltypeDark {
+				if stepData.Polarity == gerbparser.PolTypeDark {
 					stepColor = rc.ApColor
 				} else {
 					stepColor = rc.ClearColor
@@ -925,7 +1028,7 @@ func (rc *Render) StepProcessor(stepData *gerbparser.State) {
 				}
 			}
 		default:
-			checkError(errors.New("(rc *Render) StepProcessor(stepData *gerbparser.State) internal error. Bad opcode"), 666)
+			checkError(errors.New("(rc *Render) ProcessStep(stepData *gerbparser.State) internal error. Bad opcode"), 666)
 			fmt.Println("")
 			break
 		}
@@ -953,93 +1056,109 @@ func checkError(err error, exitCode int) {
 *********************** region processor ***********************************
  */
 
-var currentRegion []gerbparser.State
-var polX []float64
-var polY []float64
-var polyCorners int
-
-func (rc *Render) beginRegion() {
-	rc.ProcessingRegion = true
-	currentRegion = make([]gerbparser.State, 0)
+type Region struct {
+	steps       *[]*gerbparser.State
+	polX        *[]float64
+	polY        *[]float64
+	numVertices int
 }
 
-func (rc *Render) endRegion() {
-	rc.ProcessingRegion = false
+func newRegion() *Region {
+	retVal := new(Region)
+	//	rc.ProcessingRegion = true
+	steps := make([]*gerbparser.State, 0)
+	retVal.steps = &steps
+	polX := make([]float64, 0)
+	polY := make([]float64, 0)
+	retVal.polX = &polX
+	retVal.polY = &polY
+	return retVal
 }
+
+//func (rc *Render) endRegion() {
+//	rc.ProcessingRegion = false
+//}
 
 func (rc *Render) addStepToRegion(step *gerbparser.State) int {
-	currentRegion = append(currentRegion, *step)
-	return len(currentRegion)
+	*rc.regionPtr.steps = append(*rc.regionPtr.steps, step)
+	return len(*rc.regionPtr.steps)
 }
 
 func (rc *Render) renderPoly() {
 
-	if currentRegion[0].Action == gerbparser.OpcodeD02_MOVE {
-		currentRegion = currentRegion[1:]
+	if (*rc.regionPtr.steps)[0].Action == gerbparser.OpcodeD02_MOVE {
+		*rc.regionPtr.steps = (*rc.regionPtr.steps)[1:]
 	}
-	xxPrev := currentRegion[0].PrevCoord.GetX()
-	yyPrev := currentRegion[0].PrevCoord.GetY()
-	var i int
-	for i = 0; i < len(currentRegion); i++ {
-		if float64eq1mil(currentRegion[i].Coord.GetX(), xxPrev) && float64eq1mil(currentRegion[i].Coord.GetY(), yyPrev) {
+	prev := (*rc.regionPtr.steps)[0].PrevCoord
+
+	// check if the region contains self-intersections or is not closed
+
+	for i := 0; i < len(*rc.regionPtr.steps); i++ {
+		if (*rc.regionPtr.steps)[i].Coord.Equals(prev, 0.001) {
 			if rc.PrintRegionInfo == true {
 				fmt.Println("Closed segment found with  ", i, "vertexes")
 			}
-			if i < len(currentRegion)-2 {
-				fmt.Println("more than one segment in the region!")
+			if i < len(*rc.regionPtr.steps)-2 {
+				fmt.Println("More than one segment in the region!")
+				fmt.Println("There is", (len(*rc.regionPtr.steps) - 2 - i), "points are left out of the region")
 			}
 			break
 		}
-		if i == len(currentRegion)-1 {
+		if i == len(*rc.regionPtr.steps)-1 {
 			// the segment is not closed!
-			fmt.Println(xxPrev, yyPrev)
-			currentRegion[0].Coord.Print()
-			currentRegion[len(currentRegion)-2].Coord.Print()
-			currentRegion[len(currentRegion)-1].Coord.Print()
+			fmt.Println("The segment is not closed!")
+			fmt.Println(prev.String())
+			fmt.Println( (*rc.regionPtr.steps)[0].Coord.String() )
+			fmt.Println( (*rc.regionPtr.steps)[len(*rc.regionPtr.steps)-2].Coord.String() )
+			fmt.Println( (*rc.regionPtr.steps)[len(*rc.regionPtr.steps)-1].Coord.String() )
 			os.Exit(1000)
 		}
 	}
+
 	// let's create a array of nodes (vertices)
-	polX = make([]float64, 0)
-	polY = make([]float64, 0)
-	polyCorners = len(currentRegion)
-	minpolY := 100000000.0
-	maxpolY := 0.0
-	for j := 0; j < polyCorners; j++ {
-		if currentRegion[j].IpMode != gerbparser.IPModeLinear {
-			rc.interpolate(&minpolY, &maxpolY, &currentRegion[j])
+	rc.regionPtr.numVertices = len(*rc.regionPtr.steps)
+	minYInPolygon := 100000000.0
+	maxYInPolygon := 0.0
+	for j := 0; j < rc.regionPtr.numVertices; j++ {
+		if (*rc.regionPtr.steps)[j].IpMode != gerbparser.IPModeLinear {
+			//			rc.interpolate(&minYInPolygon, &maxYInPolygon, &steps[j])
+			rc.interpolate(&minYInPolygon, &maxYInPolygon, (*rc.regionPtr.steps)[j])
 		} else {
-			xj := (currentRegion[j].Coord.GetX() - rc.MinX) / rc.XRes
-			yj := (currentRegion[j].Coord.GetY() - rc.MinY) / rc.YRes
-			if yj < minpolY {
-				minpolY = yj
+			xj := ((*rc.regionPtr.steps)[j].Coord.GetX() - rc.MinX) / rc.XRes
+			yj := ((*rc.regionPtr.steps)[j].Coord.GetY() - rc.MinY) / rc.YRes
+			if yj < minYInPolygon {
+				minYInPolygon = yj
 			}
-			if yj > maxpolY {
-				maxpolY = yj
+			if yj > maxYInPolygon {
+				maxYInPolygon = yj
 			}
-			polX = append(polX, xj)
-			polY = append(polY, yj)
+			*rc.regionPtr.polX = append(*rc.regionPtr.polX, xj)
+			*rc.regionPtr.polY = append(*rc.regionPtr.polY, yj)
 		}
 	}
-	polyCorners = len(polX)
+	rc.regionPtr.numVertices = len(*rc.regionPtr.polX)
+
 	var nodes = 0
 	var nodeX []int
-	nodeX = make([]int, polyCorners)
+	nodeX = make([]int, rc.regionPtr.numVertices)
 	var pixelY int
 
 	// take into account real plotter pen point size
-	startY := int(math.Round(minpolY + rc.PointSize/2))
-	stopY := int(math.Round(maxpolY - rc.PointSize/2))
+	startY := int(math.Round(minYInPolygon + rc.PointSize/2))
+	stopY := int(math.Round(maxYInPolygon - rc.PointSize/2))
 	marginX := int(math.Round(rc.PointSize / 2))
 
+	// fill the inner points of the polygon
+	var i int = 0
 	for pixelY = startY; pixelY < stopY; pixelY += rc.PointSizeI {
 		fPixelY := float64(pixelY)
 		nodes = 0
-		j := polyCorners - 1
-		for i = 0; i < polyCorners; i++ {
-			if (polY[i] < fPixelY && polY[j] >= fPixelY) ||
-				(polY[j] < fPixelY && polY[i] >= fPixelY) {
-				nodeX[nodes] = int(polX[i] + ((fPixelY)-polY[i])/(polY[j]-polY[i])*(polX[j]-polX[i]))
+		j := rc.regionPtr.numVertices - 1
+		for i = 0; i < rc.regionPtr.numVertices; i++ {
+			if ((*rc.regionPtr.polY)[i] < fPixelY && (*rc.regionPtr.polY)[j] >= fPixelY) ||
+				((*rc.regionPtr.polY)[j] < fPixelY && (*rc.regionPtr.polY)[i] >= fPixelY) {
+				nodeX[nodes] = int((*rc.regionPtr.polX)[i] + ((fPixelY)-(*rc.regionPtr.polY)[i])/
+					((*rc.regionPtr.polY)[j]-(*rc.regionPtr.polY)[i])*((*rc.regionPtr.polX)[j]-(*rc.regionPtr.polX)[i]))
 				nodes++
 			}
 			j = i
@@ -1068,20 +1187,12 @@ func (rc *Render) renderPoly() {
 	return
 }
 
-func float64eq1mil(a, b float64) bool {
-	if math.Abs(a-b) < 0.001 {
-		return true
-	} else {
-		return false
-	}
-}
-
 /*
  interpolate circle by straight lines
 */
 func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser.State) {
 	var xc, yc float64 // arc center coordinates in mm
-	if st.QMode == gerbparser.QuadmodeSingle {
+	if st.QMode == gerbparser.QuadModeSingle {
 		// we have to find the sign of the I and J
 		fmt.Println("G74 hook")
 		os.Exit(800)
@@ -1175,15 +1286,16 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 func (rc *Render) addToCorners(ax, ay float64) (float64, bool) {
 	ax = (ax - rc.MinX) / rc.XRes
 	ay = (ay - rc.MinY) / rc.YRes
-	if len(polX) == 0 {
-		polX = append(polX, ax)
-		polY = append(polY, ay)
+	if len(*rc.regionPtr.polX) == 0 {
+		*rc.regionPtr.polX = append(*rc.regionPtr.polX, ax)
+		*rc.regionPtr.polY = append(*rc.regionPtr.polY, ay)
 		return ay, true
 	} else {
-		lastElement := len(polX) - 1 // last element
-		if (math.Abs(ax-polX[lastElement]) > rc.PointSize) || (math.Abs(ay-polY[lastElement]) > rc.PointSize) {
-			polX = append(polX, ax)
-			polY = append(polY, ay)
+		lastElement := len(*rc.regionPtr.polX) - 1 // last element
+		if (math.Abs(ax-(*rc.regionPtr.polX)[lastElement]) > rc.PointSize) ||
+			(math.Abs(ay-(*rc.regionPtr.polY)[lastElement]) > rc.PointSize) {
+			*rc.regionPtr.polX = append(*rc.regionPtr.polX, ax)
+			*rc.regionPtr.polY = append(*rc.regionPtr.polY, ay)
 			return ay, true
 		}
 	}

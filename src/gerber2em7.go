@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"gerbparser"
 	"github.com/spf13/viper"
+
 	"image/png"
 	"os"
 	"plotter"
@@ -152,7 +153,7 @@ func main() {
 			aperture.Type = gerbparser.AptypeBlock
 			aperture.BlockPtr = apertureBlocks[apertureBlockOpened[last]]
 			aperture.BlockPtr.StepsPtr = make([]*gerbparser.State, len(aperture.BlockPtr.BodyStrings)+1)
-			aperture.BlockPtr.StepsPtr[0] = gerbparser.NewStep()
+			aperture.BlockPtr.StepsPtr[0] = gerbparser.NewState()
 			apertureBlockOpened = apertureBlockOpened[:last]
 			aperturesList.PushBack(aperture) // store correct aperture
 			continue
@@ -323,19 +324,23 @@ func main() {
 	plotterInstance = plotter.NewPlotter()
 	plotterInstance.TakePen(1)
 	plotterInstance.SetOutFileName(viperConfig.GetString(configurator.CfgPlotterOutFile))
-	renderContext := render.NewRender(plotterInstance, viperConfig)
+	renderContext := render.NewRender(plotterInstance, viperConfig, minX, minY, maxX, maxY)
 	fmt.Println("Min. X, Y found:", minX, minY)
 	fmt.Println("Max. X, Y found:", maxX, maxY)
-	renderContext.SetMinXY(minX, minY)
+	//renderContext.SetMinXY(minX, minY)
+	//renderContext.SetMaxXY(maxX, maxY)
 
 	printMemUsage("Memory usage after render context was initialized:")
+
+	// draw frame by dashed line
+	renderContext.DrawFrame()
 
 	k := 0
 	for k < len(arrayOfSteps) {
 		if arrayOfSteps[k].Action == gerbparser.OpcodeStop {
 			break
 		}
-		renderContext.StepProcessor(arrayOfSteps[k])
+		renderContext.ProcessStep(arrayOfSteps[k])
 		k++
 	}
 
@@ -350,6 +355,21 @@ func main() {
 		fmt.Printf("%s%.0f%s", "Total move distance = ", renderContext.MovePenDistance*renderContext.XRes, " mm\n")
 
 	}
+
+	if renderContext.YNeedsFlip == true {
+		fmt.Println("Flipping only png image over X-axis.")
+		imgLines := renderContext.Img.Bounds().Max.Y - renderContext.Img.Bounds().Min.Y
+		pixelsInLine := renderContext.Img.Bounds().Max.X - renderContext.Img.Bounds().Min.X
+		steps := imgLines / 2
+		for j:= 0; j < steps ; j++ {
+			for i := 0; i < pixelsInLine; i++ {
+				tmp := renderContext.Img.At(i, j)
+				renderContext.Img.Set(i, j, renderContext.Img.At(i, imgLines - j -1))
+				renderContext.Img.Set(i, imgLines - j -1, tmp)
+			}
+		}
+	}
+
 	timeInfo(timeStamp)
 	fmt.Println("Rendering process finished")
 
@@ -572,7 +592,7 @@ func createStepSequence(src *[]string,
 	stepNumber := 1 // step number
 	stepCompleted := true
 	// create the root step with default properties
-	(*resSteps)[0] = gerbparser.NewStep()
+	(*resSteps)[0] = gerbparser.NewState()
 	// process string by string
 	var step *gerbparser.State
 	for i, s := range *src {
@@ -674,7 +694,7 @@ func unwindSRBlock(steps *[]*gerbparser.State, k int) (*[]*gerbparser.State, int
 		for i := 0; i < numXSteps; i++ {
 			addX = float64(i) * firstSRStep.SRBlock.DX()
 			for kk := k; kk < kStop; kk++ {
-				SRBlockSteps[stepCounter] = gerbparser.NewStep()
+				SRBlockSteps[stepCounter] = gerbparser.NewState()
 				if kk == k {
 					SRBlockSteps[stepCounter].PrevCoord = gerbparser.NewXY()
 				} else {

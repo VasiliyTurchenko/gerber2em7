@@ -133,14 +133,10 @@ func (fs *FormatSpec) ReadMU() float64 {
  Coordinates base type
 */
 type axisPoint struct {
-	valI     string
-	valF     string
 	valFloat float64
 }
 
 func (ap *axisPoint) clear() {
-	ap.valI = ""
-	ap.valF = ""
 	ap.valFloat = 0.0
 }
 
@@ -149,8 +145,8 @@ func (ap *axisPoint) clear() {
 // m is the number of places for frac part
 // s is the scale factor 1.0 or 25.4 (mm/inches)
 func (ap *axisPoint) init(ins string, n, m int, s float64) bool {
-	var result bool = false
-	var neg bool = false
+	var result = false
+	var neg = false
 	var ws string
 
 	if strings.HasPrefix(ins, "-") {
@@ -194,8 +190,6 @@ func (ap *axisPoint) init(ins string, n, m int, s float64) bool {
 	if fpart, err = strconv.Atoi((string)(ps[n : m+n])); err != nil {
 		return false
 	}
-	ap.valI = strconv.Itoa(ipart)
-	ap.valF = strconv.Itoa(fpart)
 	//	fmt.Println("\taxisPoint.init: int part = ", ap.valI, "; fractional part = ", ap.valF)
 	tmpfloat := float64(fpart) / math.Pow10(m)
 	tmpfloat += float64(ipart)
@@ -215,8 +209,6 @@ func (ap *axisPoint) getfval() float64 {
 }
 
 type XY struct {
-	prev        *XY
-	next        *XY
 	nodeNumber  uint32
 	coordString string // string representation
 	x           axisPoint
@@ -239,6 +231,23 @@ func (xy *XY) Print() {
 	//	fmt.Println("\tString representation: ", xy.CoordString)
 	//	fmt.Println("\tReal coordinates (x,y): ", xy.X.getfval(), ",", xy.Y.getfval())
 	//	fmt.Println("\tReal coordinates (i,j): ", xy.I.getfval(), ",", xy.J.getfval())
+}
+
+func (xy *XY) String() string {
+	// "XY object # nnn : (xxx, yyy)
+	retVal:= "XY object # " +
+		strconv.Itoa(int(xy.nodeNumber)) +
+		" :(" +
+		strconv.FormatFloat(xy.x.getfval(),'f', 5,64) +
+		"," +
+		strconv.FormatFloat(xy.x.getfval(),'f',5, 64)
+	return retVal
+}
+
+// tolerance is the radius of the circle around first point
+// inisde of which another point will be treated as equal to the first one
+func (xy *XY) Equals(another *XY, tolerance float64) bool {
+	return ( math.Hypot(xy.GetX() - another.GetX(), xy.GetY() - another.GetY()) ) < tolerance
 }
 
 func (xy *XY) GetX() float64 {
@@ -276,16 +285,11 @@ func (xy *XY) SetJ(j float64) {
 func (xy *XY) Init(sc string, fs *FormatSpec, prev *XY) bool {
 	var result bool = false
 	if prev == nil { // first node
-		xy.prev = nil
-		xy.next = nil
 		xy.nodeNumber = 0
 		xy.x.clear()
 		xy.y.clear()
 	} else {
 		*xy = *prev
-		xy.prev = prev
-		xy.next = nil
-		prev.next = xy
 		xy.nodeNumber = prev.nodeNumber + 1
 	}
 	// offsets are not modal
@@ -342,16 +346,6 @@ func (xy *XY) Init(sc string, fs *FormatSpec, prev *XY) bool {
 		}
 	}
 
-	/*
-		if m2[0] == 'D' {
-			return false
-		}
-	*/
-	/*	if p2[0] != 0 {
-			return false
-		}
-	*/
-	//	fmt.Println(m2, p2)
 	sf := fs.ReadMU()
 L1:
 	for i := range m2 {
@@ -397,7 +391,6 @@ L1:
 		xy.i.clear()
 		xy.j.clear()
 		xy.coordString = ""
-		//		xy.Prev.Next = nil
 	}
 	return result
 }
@@ -412,7 +405,7 @@ type Region struct {
 }
 
 // creates and initialises a region object
-func NewRegion(strNum int) *Region {
+func newRegion(strNum int) *Region {
 	retVal := new(Region)
 	retVal.G36StringNumber = strNum
 	retVal.numberOfXY = 0
@@ -430,18 +423,18 @@ func (region *Region) Close(strnum int) error {
 }
 
 // sets a start coordinate entry
-func (region *Region) SetStartXY(in *XY) {
+func (region *Region) setStartXY(in *XY) {
 	region.startXY = in
 	region.numberOfXY++
 }
 
 // returns a start coordinate entry
-func (region *Region) GetStartXY() *XY {
+func (region *Region) getStartXY() *XY {
 	return region.startXY
 }
 
 // increments number of coordinate entries
-func (region *Region) IncNumXY() int {
+func (region *Region) incNumXY() int {
 	region.numberOfXY++
 	return region.numberOfXY
 }
@@ -452,7 +445,7 @@ func (region *Region) GetNumXY() int {
 }
 
 // returns true if region is opened
-func (region *Region) RegionOpened() (bool, error) {
+func (region *Region) isRegionOpened() (bool, error) {
 	if region == nil {
 		return false, errors.New("bad region referenced (by nil ptr)")
 	}
@@ -496,7 +489,7 @@ func (srblock *SRBlock) NSteps() int {
 	return srblock.nSteps
 }
 
-func (srblock *SRBlock) IncNSteps() {
+func (srblock *SRBlock) incNSteps() {
 	srblock.nSteps++
 }
 
@@ -772,11 +765,11 @@ fExit:
 /*
 ################################## State machine ######################################
 */
-type Poltype int
+type polType int
 
 const (
-	PoltypeDark  Poltype = iota + 1
-	PoltypeClear
+	PolTypeDark polType = iota + 1
+	PolTypeClear
 )
 
 type Acttype int
@@ -788,11 +781,11 @@ const (
 	OpcodeStop
 )
 
-type Quadmode int
+type QuadMode int
 
 const (
-	QuadmodeSingle Quadmode = iota + 1
-	QuadmodeMulti
+	QuadModeSingle QuadMode = iota + 1
+	QuadModeMulti
 )
 
 type IPmode int
@@ -810,8 +803,8 @@ const (
 type State struct {
 	// each instance of the State represents an action which must be done
 	StepNumber  int     // step number
-	Polarity    Poltype // %LPD*% or %LPC*%
-	QMode       Quadmode
+	Polarity    polType // %LPD*% or %LPC*%
+	QMode       QuadMode
 	CurrentAp   *Aperture // aperture code
 	IpMode      IPmode    // interpolation mode
 	PrevCoord   *XY
@@ -846,17 +839,17 @@ func (step *State) Print() {
 	if step.OriginForAB != nil {
 		fmt.Printf("\t%s%f%s%f\n", "Origin X=", step.OriginForAB.GetX(), "  Origin Y=", step.OriginForAB.GetY())
 	} else {
-		fmt.Println("\tOrigin fro apert.block <nil>")
+		fmt.Println("\tOrigin from apert.block <nil>")
 	}
 }
 
 // creates and intializes step object with default values
-func NewStep() *State {
-	step := new(State)
-	step.Coord = NewXY()
-	step.Polarity = PoltypeDark
-	step.IpMode = IPModeLinear
-	return step
+func NewState() *State {
+	state := new(State)
+	state.Coord = NewXY()
+	state.Polarity = PolTypeDark
+	state.IpMode = IPModeLinear
+	return state
 }
 
 func (step *State) CopyOfWithOffset(another *State, addX float64, addY float64) {
@@ -909,35 +902,35 @@ func (step *State) CreateStep(
 		return SCResultNextString
 	}
 	if strings.Compare(*inString, "%LPC*%") == 0 {
-		step.Polarity = PoltypeClear
+		step.Polarity = PolTypeClear
 		return SCResultNextString
 	}
 	if strings.Compare(*inString, "%LPD*%") == 0 {
-		step.Polarity = PoltypeDark
+		step.Polarity = PolTypeDark
 		return SCResultNextString
 	}
 	if strings.Compare(*inString, "G74*") == 0 {
-		step.QMode = QuadmodeSingle
+		step.QMode = QuadModeSingle
 		return SCResultNextString
 	}
 	if strings.Compare(*inString, "G75*") == 0 {
-		step.QMode = QuadmodeMulti
+		step.QMode = QuadModeMulti
 		return SCResultNextString
 	}
 	if strings.Compare("G37*", *inString) == 0 {
 		// G37 command is found
-		regionOpenedState, err := step.Region.RegionOpened()
-		CheckError(err, 401)
+		regionOpenedState, err := step.Region.isRegionOpened()
+		checkError(err, 401)
 		if regionOpenedState == true { // creg is opened
 			err = step.Region.Close(i)
-			CheckError(err, 402)
+			checkError(err, 402)
 			step.Region = nil
 		}
 		return SCResultNextString
 	}
 	//
 	if strings.Compare("G36*", *inString) == 0 {
-		creg := NewRegion(i)
+		creg := newRegion(i)
 		regionsList.PushBack(creg)
 		step.Region = creg
 		// add coordinates as usual, close creg at G37 command
@@ -965,14 +958,14 @@ func (step *State) CreateStep(
 			//				fmt.Println("string:", i, "\tcoordinates(X,Y,I,J):", xy.GetX(), xy.GetY(), xy.GetJ(), xy.GetJ())
 			// check if the xy belongs to a region
 			if step.Region != nil {
-				rs, _ := step.Region.RegionOpened()
+				rs, _ := step.Region.isRegionOpened()
 				if rs == true {
 					// add coordinate entry into creg
 					if step.Region.GetNumXY() == 0 {
 						// no coordinate entries in the creg
-						step.Region.SetStartXY(xy)
+						step.Region.setStartXY(xy)
 					} else {
-						step.Region.IncNumXY()
+						step.Region.incNumXY()
 					}
 				}
 			}
@@ -982,7 +975,7 @@ func (step *State) CreateStep(
 			os.Exit(310)
 		}
 		if step.SRBlock != nil {
-			step.SRBlock.IncNSteps()
+			step.SRBlock.incNSteps()
 		}
 		return SCResultStepCompleted
 	}
@@ -993,7 +986,7 @@ func (step *State) CreateStep(
 		var tc int
 		step.CurrentAp = nil
 		tc, err := strconv.Atoi(s[1 : len(s)-1])
-		CheckError(err, 501)
+		checkError(err, 501)
 		for k := apertList.Front(); k != nil; k = k.Next() {
 			if k.Value.(*Aperture).GetCode() == tc {
 				step.CurrentAp = k.Value.(*Aperture)
@@ -1001,7 +994,7 @@ func (step *State) CreateStep(
 			}
 		}
 		if step.CurrentAp == nil {
-			CheckError(errors.New("the aperture does not exist"), 502)
+			checkError(errors.New("the aperture does not exist"), 502)
 		}
 		return SCResultNextString
 	}
@@ -1011,7 +1004,7 @@ func (step *State) CreateStep(
 		step.SRBlock = new(SRBlock)
 		s := *inString
 		srerr := step.SRBlock.Init(s[3:len(s)-2], fSpec)
-		CheckError(srerr, 550)
+		checkError(srerr, 550)
 		//		SRBlocks = append(SRBlocks, srblock)
 		//		srb = srblock
 		return SCResultNextString
@@ -1035,10 +1028,10 @@ func (step *State) CreateStep(
 	return SCResultSkipString
 }
 
-func CheckError(err error, exitcode int) {
+func checkError(err error, exitCode int) {
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(exitcode)
+		os.Exit(exitCode)
 	}
 }
 
