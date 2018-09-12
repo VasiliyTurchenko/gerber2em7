@@ -25,14 +25,13 @@ type Plotter struct {
 	outputFile      *os.File
 	err             error
 	outStringBuffer []string
-//	outStringBuffer *stor.Storage
 
 }
 
 func NewPlotter() *Plotter {
-	retval := new(Plotter)
-	retval.Init()
-	return retval
+	retVal := new(Plotter)
+	retVal.Init()
+	return retVal
 }
 
 /*
@@ -41,10 +40,9 @@ func NewPlotter() *Plotter {
 func (plotter *Plotter) Init() string {
 	plotter.currentPosX = 0
 	plotter.currentPosY = 0
-	plotter.outStringBuffer = /*stor.NewStorage() */ make([]string, 0)
+	plotter.outStringBuffer = make([]string, 0)
 	retVal := "J\n"
 	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
-//	plotter.outStringBuffer.Accept(retVal)
 	return retVal
 }
 
@@ -131,32 +129,32 @@ func (plotter *Plotter) DrawLine(x0, y0, x1, y1 int) string {
 }
 
 func (plotter *Plotter) Circle(xc, yc, r int) string {
-	retval := plotter.moveTo(xc+r, yc) // move to the rightmost circle point
-	plotter.outStringBuffer = append(plotter.outStringBuffer, retval)
-	retval = "D C" + strconv.Itoa(r) + " , 0 , 360\n"
-	plotter.outStringBuffer = append(plotter.outStringBuffer, retval)
-	retval = plotter.moveTo(xc, yc)
-	plotter.outStringBuffer = append(plotter.outStringBuffer, retval)
-	return retval
+	retVal := plotter.moveTo(xc+r, yc) // move to the rightmost circle point
+	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
+	retVal = "D C" + strconv.Itoa(r) + " , 0 , 360\n"
+	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
+	retVal = plotter.moveTo(xc, yc)
+	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
+	return retVal
 }
 
 func (plotter *Plotter) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm gerbparser.IPmode) string {
-	var retval string
+	var retVal string
 	if (plotter.currentPosX != x0) || (plotter.currentPosY != y0) {
 		fmt.Println("Arc. Position discrepance detected!")
-		retval = plotter.moveTo(x0, y0)
-		plotter.outStringBuffer = append(plotter.outStringBuffer, retval)
+		retVal = plotter.moveTo(x0, y0)
+		plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
 	}
 	if ipm == gerbparser.IPModeCwC {
 		radius = -radius
 	} else {
 		radius = radius
 	}
-	retval = "DC " + strconv.Itoa(radius) + " , " + strconv.Itoa(fi0) + " , " + strconv.Itoa(fi1) + "\n"
-	plotter.outStringBuffer = append(plotter.outStringBuffer, retval)
-	retval = plotter.moveTo(x1, y1)
-	plotter.outStringBuffer = append(plotter.outStringBuffer, retval)
-	return retval
+	retVal = "DC " + strconv.Itoa(radius) + " , " + strconv.Itoa(fi0) + " , " + strconv.Itoa(fi1) + "\n"
+	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
+	retVal = plotter.moveTo(x1, y1)
+	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
+	return retVal
 
 }
 

@@ -27,29 +27,32 @@ import (
 // TODO get rid of it
 var verboseLevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
 
-// configuration base
-var viperConfig *viper.Viper
+var (
 
-// global storage of input gerber file strings, the source to feed some processors
-var gerberStrings *stor.Storage
+	// configuration base
+	viperConfig *viper.Viper
 
-// plotter instance which is responsible for generating the command stream for the target device
-var plotterInstance *plotter.Plotter
+	// global storage of input gerber file strings, the source to feed some processors
+	gerberStrings *stor.Storage
 
-// array of steps to be executed to generate PCB
-var arrayOfSteps []*gerbparser.State
+	// plotter instance which is responsible for generating the command stream for the target device
+	plotterInstance *plotter.Plotter
 
-// the list of regions
-var regionsList *list.List
+	// array of steps to be executed to generate PCB
+	arrayOfSteps []*gerbparser.State
 
-// the list of all the apertures
-var aperturesList *list.List
+	// the list of regions
+	regionsList *list.List
 
-// the map consisting all the aperture blocks
-var apertureBlocks map[string]*gerbparser.BlockAperture
+	// the list of all the apertures
+	aperturesList *list.List
 
-// format specification for the gerber file
-var fSpec *gerbparser.FormatSpec
+	// the map consisting all the aperture blocks
+	apertureBlocks map[string]*gerbparser.BlockAperture
+
+	// format specification for the gerber file
+	fSpec *gerbparser.FormatSpec
+)
 
 func main() {
 
@@ -325,8 +328,8 @@ func main() {
 	plotterInstance.TakePen(1)
 	plotterInstance.SetOutFileName(viperConfig.GetString(configurator.CfgPlotterOutFile))
 	renderContext := render.NewRender(plotterInstance, viperConfig, minX, minY, maxX, maxY)
-	fmt.Println("Min. X, Y found:", minX, minY)
-	fmt.Println("Max. X, Y found:", maxX, maxY)
+	fmt.Printf("Min. X, Y found: (%f,%f)\n", minX, minY)
+	fmt.Printf("Max. X, Y found: (%f,%f)\n", maxX, maxY)
 	//renderContext.SetMinXY(minX, minY)
 	//renderContext.SetMaxXY(maxX, maxY)
 
@@ -357,15 +360,16 @@ func main() {
 	}
 
 	if renderContext.YNeedsFlip == true {
-		fmt.Println("Flipping only png image over X-axis.")
+		timeInfo(timeStamp)
+		fmt.Println("Started flipping (only png image) over X-axis")
 		imgLines := renderContext.Img.Bounds().Max.Y - renderContext.Img.Bounds().Min.Y
 		pixelsInLine := renderContext.Img.Bounds().Max.X - renderContext.Img.Bounds().Min.X
 		steps := imgLines / 2
-		for j:= 0; j < steps ; j++ {
+		for j := 0; j < steps; j++ {
 			for i := 0; i < pixelsInLine; i++ {
 				tmp := renderContext.Img.At(i, j)
-				renderContext.Img.Set(i, j, renderContext.Img.At(i, imgLines - j -1))
-				renderContext.Img.Set(i, imgLines - j -1, tmp)
+				renderContext.Img.Set(i, j, renderContext.Img.At(i, imgLines-j-1))
+				renderContext.Img.Set(i, imgLines-j-1, tmp)
 			}
 		}
 	}
@@ -377,7 +381,7 @@ func main() {
 	if viperConfig.GetBool(configurator.CfgRendererGeneratePNG) == true {
 		printMemUsage("Memory usage before png encoding:")
 		timeInfo(timeStamp)
-		fmt.Println("Generating png image ")
+		fmt.Println("Generating png image ", renderContext.Img.Bounds().String())
 		f, _ := os.OpenFile("G:\\go_prj\\gerber2em7\\src\\out.png", os.O_WRONLY|os.O_CREATE, 0600)
 		defer f.Close()
 		png.Encode(f, renderContext.Img)
