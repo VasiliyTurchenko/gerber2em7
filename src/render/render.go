@@ -39,6 +39,9 @@ type Render struct {
 	LimitsX1     int
 	LimitsY1     int
 
+	// magrin is a safety margin to draw all the border elements of the pcb
+	margin	float64
+
 	YNeedsFlip bool
 
 	// point size in terms of real plotter pen points
@@ -79,8 +82,8 @@ type Render struct {
 	FilledRctCounter  int
 	ObRoundCounter    int
 
-	// region being processed
-	regionPtr *Region
+	// polygon being processed
+	polygonPtr *Polygon
 }
 
 func NewRender(plotter *plotter.Plotter, viper *viper.Viper, minX, minY, maxX, maxY float64) *Render {
@@ -113,12 +116,12 @@ func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper,  minX, minY, ma
 	//rc.LimitsX1 = int(float64(rc.CanvasWidth) / float64(rc.XRes))
 	//rc.LimitsY1 = int(float64(rc.CanvasHeight) / float64(rc.YRes))
 
-	margin := 10.0
+	rc.margin = 10.0
 
-	rc.MinX = minX - margin
-	rc.MinY = minY - margin
-	rc.MaxX = maxX + margin
-	rc.MaxY = maxY + margin
+	rc.MinX = minX - rc.margin
+	rc.MinY = minY - rc.margin
+	rc.MaxX = maxX + rc.margin
+	rc.MaxY = maxY + rc.margin
 
 
 	rc.LimitsX1 = int((rc.MaxX - rc.MinX) / float64(rc.XRes))
@@ -159,19 +162,9 @@ func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper,  minX, minY, ma
 	return
 }
 
-//func (rc *Render) SetMinXY(x, y float64) {
-//	rc.MinX = x
-//	rc.MinY = y
-//}
-//
-//func (rc *Render) SetMaxXY(x, y float64) {
-//	rc.MaxX = x
-//	rc.MaxY = y
-//}
-
 func (rc *Render) DrawFrame() {
 
-	if rc.MaxY <= 0 {
+	if (rc.MaxY - rc.margin) <= 0 {
 		rc.YNeedsFlip = true
 	}
 
@@ -919,14 +912,13 @@ func (rc *Render) ProcessStep(stepData *gerbparser.State) {
 		// process region
 		//		if rc.ProcessingRegion == false {
 		//			rc.NewRegion()
-		if rc.regionPtr == nil {
-			rc.regionPtr = newRegion()
+		if rc.polygonPtr == nil {
+			rc.polygonPtr = newPolygon()
 		}
-		if rc.addStepToRegion(stepData) == stepData.Region.GetNumXY() {
+		if rc.addStepToPolygon(stepData) == stepData.Region.GetNumXY() {
 			// we can process region
-			rc.renderPoly()
-			//			rc.endRegion()
-			rc.regionPtr = nil
+			rc.renderPolygon()
+			rc.polygonPtr = nil
 		}
 	} else {
 		var stepColor color.RGBA
@@ -1056,15 +1048,15 @@ func checkError(err error, exitCode int) {
 *********************** region processor ***********************************
  */
 
-type Region struct {
+type Polygon struct {
 	steps       *[]*gerbparser.State
 	polX        *[]float64
 	polY        *[]float64
 	numVertices int
 }
 
-func newRegion() *Region {
-	retVal := new(Region)
+func newPolygon() *Polygon {
+	retVal := new(Polygon)
 	//	rc.ProcessingRegion = true
 	steps := make([]*gerbparser.State, 0)
 	retVal.steps = &steps
@@ -1079,68 +1071,68 @@ func newRegion() *Region {
 //	rc.ProcessingRegion = false
 //}
 
-func (rc *Render) addStepToRegion(step *gerbparser.State) int {
-	*rc.regionPtr.steps = append(*rc.regionPtr.steps, step)
-	return len(*rc.regionPtr.steps)
+func (rc *Render) addStepToPolygon(step *gerbparser.State) int {
+	*rc.polygonPtr.steps = append(*rc.polygonPtr.steps, step)
+	return len(*rc.polygonPtr.steps)
 }
 
-func (rc *Render) renderPoly() {
+func (rc *Render) renderPolygon() {
 
-	if (*rc.regionPtr.steps)[0].Action == gerbparser.OpcodeD02_MOVE {
-		*rc.regionPtr.steps = (*rc.regionPtr.steps)[1:]
+	if (*rc.polygonPtr.steps)[0].Action == gerbparser.OpcodeD02_MOVE {
+		*rc.polygonPtr.steps = (*rc.polygonPtr.steps)[1:]
 	}
-	prev := (*rc.regionPtr.steps)[0].PrevCoord
+	prev := (*rc.polygonPtr.steps)[0].PrevCoord
 
 	// check if the region contains self-intersections or is not closed
 
-	for i := 0; i < len(*rc.regionPtr.steps); i++ {
-		if (*rc.regionPtr.steps)[i].Coord.Equals(prev, 0.001) {
+	for i := 0; i < len(*rc.polygonPtr.steps); i++ {
+		if (*rc.polygonPtr.steps)[i].Coord.Equals(prev, 0.001) {
 			if rc.PrintRegionInfo == true {
 				fmt.Println("Closed segment found with  ", i, "vertexes")
 			}
-			if i < len(*rc.regionPtr.steps)-2 {
+			if i < len(*rc.polygonPtr.steps)-2 {
 				fmt.Println("More than one segment in the region!")
-				fmt.Println("There is", (len(*rc.regionPtr.steps) - 2 - i), "points are left out of the region")
+				fmt.Println("There is", (len(*rc.polygonPtr.steps) - 2 - i), "points are left out of the region")
 			}
 			break
 		}
-		if i == len(*rc.regionPtr.steps)-1 {
+		if i == len(*rc.polygonPtr.steps)-1 {
 			// the segment is not closed!
 			fmt.Println("The segment is not closed!")
 			fmt.Println(prev.String())
-			fmt.Println( (*rc.regionPtr.steps)[0].Coord.String() )
-			fmt.Println( (*rc.regionPtr.steps)[len(*rc.regionPtr.steps)-2].Coord.String() )
-			fmt.Println( (*rc.regionPtr.steps)[len(*rc.regionPtr.steps)-1].Coord.String() )
+			fmt.Println( (*rc.polygonPtr.steps)[0].Coord.String() )
+			fmt.Println( (*rc.polygonPtr.steps)[len(*rc.polygonPtr.steps)-2].Coord.String() )
+			fmt.Println( (*rc.polygonPtr.steps)[len(*rc.polygonPtr.steps)-1].Coord.String() )
 			os.Exit(1000)
 		}
 	}
 
 	// let's create a array of nodes (vertices)
-	rc.regionPtr.numVertices = len(*rc.regionPtr.steps)
+	rc.polygonPtr.numVertices = len(*rc.polygonPtr.steps)
 	minYInPolygon := 100000000.0
 	maxYInPolygon := 0.0
-	for j := 0; j < rc.regionPtr.numVertices; j++ {
-		if (*rc.regionPtr.steps)[j].IpMode != gerbparser.IPModeLinear {
+	for j := 0; j < rc.polygonPtr.numVertices; j++ {
+		if (*rc.polygonPtr.steps)[j].IpMode != gerbparser.IPModeLinear {
 			//			rc.interpolate(&minYInPolygon, &maxYInPolygon, &steps[j])
-			rc.interpolate(&minYInPolygon, &maxYInPolygon, (*rc.regionPtr.steps)[j])
+			rc.interpolate(&minYInPolygon, &maxYInPolygon, (*rc.polygonPtr.steps)[j])
 		} else {
-			xj := ((*rc.regionPtr.steps)[j].Coord.GetX() - rc.MinX) / rc.XRes
-			yj := ((*rc.regionPtr.steps)[j].Coord.GetY() - rc.MinY) / rc.YRes
+			xj := ((*rc.polygonPtr.steps)[j].Coord.GetX() - rc.MinX) / rc.XRes
+			yj := ((*rc.polygonPtr.steps)[j].Coord.GetY() - rc.MinY) / rc.YRes
 			if yj < minYInPolygon {
 				minYInPolygon = yj
 			}
 			if yj > maxYInPolygon {
 				maxYInPolygon = yj
 			}
-			*rc.regionPtr.polX = append(*rc.regionPtr.polX, xj)
-			*rc.regionPtr.polY = append(*rc.regionPtr.polY, yj)
+			*rc.polygonPtr.polX = append(*rc.polygonPtr.polX, xj)
+			*rc.polygonPtr.polY = append(*rc.polygonPtr.polY, yj)
 		}
 	}
-	rc.regionPtr.numVertices = len(*rc.regionPtr.polX)
+	rc.polygonPtr.numVertices = len(*rc.polygonPtr.polX)
 
 	var nodes = 0
 	var nodeX []int
-	nodeX = make([]int, rc.regionPtr.numVertices)
+	nodeX = make([]int, rc.polygonPtr.numVertices)
 	var pixelY int
 
 	// take into account real plotter pen point size
@@ -1153,12 +1145,12 @@ func (rc *Render) renderPoly() {
 	for pixelY = startY; pixelY < stopY; pixelY += rc.PointSizeI {
 		fPixelY := float64(pixelY)
 		nodes = 0
-		j := rc.regionPtr.numVertices - 1
-		for i = 0; i < rc.regionPtr.numVertices; i++ {
-			if ((*rc.regionPtr.polY)[i] < fPixelY && (*rc.regionPtr.polY)[j] >= fPixelY) ||
-				((*rc.regionPtr.polY)[j] < fPixelY && (*rc.regionPtr.polY)[i] >= fPixelY) {
-				nodeX[nodes] = int((*rc.regionPtr.polX)[i] + ((fPixelY)-(*rc.regionPtr.polY)[i])/
-					((*rc.regionPtr.polY)[j]-(*rc.regionPtr.polY)[i])*((*rc.regionPtr.polX)[j]-(*rc.regionPtr.polX)[i]))
+		j := rc.polygonPtr.numVertices - 1
+		for i = 0; i < rc.polygonPtr.numVertices; i++ {
+			if ((*rc.polygonPtr.polY)[i] < fPixelY && (*rc.polygonPtr.polY)[j] >= fPixelY) ||
+				((*rc.polygonPtr.polY)[j] < fPixelY && (*rc.polygonPtr.polY)[i] >= fPixelY) {
+				nodeX[nodes] = int((*rc.polygonPtr.polX)[i] + ((fPixelY)-(*rc.polygonPtr.polY)[i])/
+					((*rc.polygonPtr.polY)[j]-(*rc.polygonPtr.polY)[i])*((*rc.polygonPtr.polX)[j]-(*rc.polygonPtr.polX)[i]))
 				nodes++
 			}
 			j = i
@@ -1286,16 +1278,16 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 func (rc *Render) addToCorners(ax, ay float64) (float64, bool) {
 	ax = (ax - rc.MinX) / rc.XRes
 	ay = (ay - rc.MinY) / rc.YRes
-	if len(*rc.regionPtr.polX) == 0 {
-		*rc.regionPtr.polX = append(*rc.regionPtr.polX, ax)
-		*rc.regionPtr.polY = append(*rc.regionPtr.polY, ay)
+	if len(*rc.polygonPtr.polX) == 0 {
+		*rc.polygonPtr.polX = append(*rc.polygonPtr.polX, ax)
+		*rc.polygonPtr.polY = append(*rc.polygonPtr.polY, ay)
 		return ay, true
 	} else {
-		lastElement := len(*rc.regionPtr.polX) - 1 // last element
-		if (math.Abs(ax-(*rc.regionPtr.polX)[lastElement]) > rc.PointSize) ||
-			(math.Abs(ay-(*rc.regionPtr.polY)[lastElement]) > rc.PointSize) {
-			*rc.regionPtr.polX = append(*rc.regionPtr.polX, ax)
-			*rc.regionPtr.polY = append(*rc.regionPtr.polY, ay)
+		lastElement := len(*rc.polygonPtr.polX) - 1 // last element
+		if (math.Abs(ax-(*rc.polygonPtr.polX)[lastElement]) > rc.PointSize) ||
+			(math.Abs(ay-(*rc.polygonPtr.polY)[lastElement]) > rc.PointSize) {
+			*rc.polygonPtr.polX = append(*rc.polygonPtr.polX, ax)
+			*rc.polygonPtr.polY = append(*rc.polygonPtr.polY, ay)
 			return ay, true
 		}
 	}

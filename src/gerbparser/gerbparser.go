@@ -235,12 +235,13 @@ func (xy *XY) Print() {
 
 func (xy *XY) String() string {
 	// "XY object # nnn : (xxx, yyy)
-	retVal:= "XY object # " +
+	retVal:= "XY object #" +
 		strconv.Itoa(int(xy.nodeNumber)) +
-		" :(" +
+		": (" +
 		strconv.FormatFloat(xy.x.getfval(),'f', 5,64) +
 		"," +
-		strconv.FormatFloat(xy.x.getfval(),'f',5, 64)
+		strconv.FormatFloat(xy.y.getfval(),'f',5, 64) +
+		")"
 	return retVal
 }
 
@@ -404,6 +405,14 @@ type Region struct {
 	G37StringNumber int // number of the string with G37 cmd
 }
 
+func (region *Region) String() string {
+	return "Region:\n" +
+		"\tstart point: " + region.startXY.String() + "\n" +
+		"\tcontains " + strconv.Itoa(region.numberOfXY) + " vertices\n" +
+		"\tG36 command is at line " + strconv.Itoa(region.G36StringNumber) + "\n" +
+		"\tG37 command is at line " + strconv.Itoa(region.G37StringNumber)
+}
+
 // creates and initialises a region object
 func newRegion(strNum int) *Region {
 	retVal := new(Region)
@@ -419,6 +428,9 @@ func (region *Region) Close(strnum int) error {
 		return errors.New("can not close the contour referenced by null pointer")
 	}
 	region.G37StringNumber = strnum
+
+	fmt.Println(region.String())
+
 	return nil
 }
 
@@ -772,10 +784,22 @@ const (
 	PolTypeClear
 )
 
-type Acttype int
+type ActType int
+
+func (act ActType) String() string {
+	switch act {
+	case OpcodeD01_DRAW : return "Opcode D01 (DRAW)"
+	case OpcodeD02_MOVE: return "Opcode D02 (MOVE)"
+	case OpcodeD03_FLASH: return "Opcode D03 (FLASH)"
+	case OpcodeStop: return "Opcode Stop"
+	default:
+
+	}
+	return "Unknown OpCode"
+}
 
 const (
-	OpcodeD01_DRAW Acttype = iota + 1
+	OpcodeD01_DRAW ActType = iota + 1
 	OpcodeD02_MOVE
 	OpcodeD03_FLASH
 	OpcodeStop
@@ -809,7 +833,7 @@ type State struct {
 	IpMode      IPmode    // interpolation mode
 	PrevCoord   *XY
 	Coord       *XY
-	Action      Acttype
+	Action      ActType
 	Region      *Region
 	SRBlock     *SRBlock
 	OriginForAB *XY // origin for aperture block insertion
@@ -826,7 +850,7 @@ func (step *State) Print() {
 	} else {
 		fmt.Println("\tAperture <nil>")
 	}
-	fmt.Println("\tAction", step.Action)
+	fmt.Println(step.Action.String())
 	fmt.Println("\tRegion", step.Region)
 	fmt.Println("\tS&R block", step.SRBlock)
 	if step.PrevCoord != nil {
@@ -843,7 +867,7 @@ func (step *State) Print() {
 	}
 }
 
-// creates and intializes step object with default values
+// creates and initializes step object with default values
 func NewState() *State {
 	state := new(State)
 	state.Coord = NewXY()
