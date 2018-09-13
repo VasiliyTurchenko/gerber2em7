@@ -58,7 +58,7 @@ type Aperture struct {
 	Vertices     int
 	RotAngle     float64
 	BlockPtr     *BlockAperture
-	MacroPtr     *MacroAperture
+	MacroPtr     *ApertureMacro
 }
 
 type BlockAperture struct {
@@ -68,6 +68,7 @@ type BlockAperture struct {
 	StepsPtr       []*State
 }
 
+//Print info
 func (ba *BlockAperture) Print() {
 	fmt.Println("\n***** Block aperture *****")
 	fmt.Println("\tBlock aperture code:", ba.Code)
@@ -79,10 +80,6 @@ func (ba *BlockAperture) Print() {
 	for b := range ba.StepsPtr {
 		ba.StepsPtr[b].Print()
 	}
-}
-
-type MacroAperture struct {
-	dummy int
 }
 
 func (apert *Aperture) GetCode() int {

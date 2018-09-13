@@ -325,11 +325,8 @@ func (step *State) CreateStep(
 	if strings.Compare(s, "M02*") == 0 || strings.Compare(s, "M00*") == 0 {
 		fmt.Println("Stop found at line", i)
 		step.Action = OpcodeStop
-		// create the special last step
-		//		step.StepNumber = prevStep.StepNumber + 1
 		step.SRBlock = nil // also closes s&r block
 		return SCResultStop
 	}
-
 	return SCResultSkipString
 }
