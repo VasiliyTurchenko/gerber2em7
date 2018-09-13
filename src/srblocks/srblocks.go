@@ -3,14 +3,12 @@ The file contains functions and structures used for parsing gerber x2 file
 */
 package srblocks
 
-
 import (
 	"errors"
-	"strings"
 	"strconv"
-	."xy"
+	"strings"
+	. "xy"
 )
-
 
 /*
 ############################## step and repeat blocks #################################
@@ -143,4 +141,3 @@ func ExtractLetterDelimitedFloats(ins, template string) (out map[byte]float64, e
 
 	return out, nil
 }
-

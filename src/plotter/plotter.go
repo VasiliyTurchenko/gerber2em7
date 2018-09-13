@@ -5,10 +5,10 @@ package plotter
 
 import (
 	"fmt"
+	. "gerberbasetypes"
 	"os"
 	"strconv"
 	"strings"
-	. "gerberbasetypes"
 )
 
 /*
@@ -21,11 +21,10 @@ type Plotter struct {
 	moveCmds        int
 	currentPosX     int
 	currentPosY     int
-	outFileName		string
+	outFileName     string
 	outputFile      *os.File
 	err             error
 	outStringBuffer []string
-
 }
 
 func NewPlotter() *Plotter {
@@ -49,9 +48,10 @@ func (plotter *Plotter) Init() string {
 func (plotter *Plotter) SetOutFileName(outFileName string) {
 	plotter.outFileName = outFileName
 }
+
 /*
 	Deletes unnecessary MA commands
- */
+*/
 func (plotter *Plotter) squeeze() {
 	tmpString := make([]string, 0)
 	var lastMA string
@@ -71,7 +71,7 @@ func (plotter *Plotter) squeeze() {
 
 /*
 	Finalizes command stream and writes file to disk
- */
+*/
 func (plotter *Plotter) Stop() {
 	_ = plotter.TakePen(0)
 	_ = plotter.MoveTo(0, 0)

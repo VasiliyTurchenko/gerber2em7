@@ -86,7 +86,7 @@ func TestNewStorage(t *testing.T) {
 	// reset indexes
 	for i := range storageArray {
 		storageArray[i].ResetPos()
-		}
+	}
 	t.Log("read again after resetting positions")
 	for j := range testArray {
 		for i := range storageArray {
@@ -128,15 +128,15 @@ func TestNewStorage(t *testing.T) {
 			}
 		}
 	}
-/*
-	t.Log("for loop test")
-	storageArray[0].ResetPos()
-	s := storageArray[0].String()
-	for len(s) > 0 {
-		t.Log(s)
-		s = storageArray[0].String()
-	}
-*/
+	/*
+		t.Log("for loop test")
+		storageArray[0].ResetPos()
+		s := storageArray[0].String()
+		for len(s) > 0 {
+			t.Log(s)
+			s = storageArray[0].String()
+		}
+	*/
 
 	t.Log("ToArray() test")
 

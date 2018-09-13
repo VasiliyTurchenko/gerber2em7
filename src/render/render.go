@@ -13,9 +13,8 @@ import (
 )
 
 import (
-	."gerberbasetypes"
+	. "gerberbasetypes"
 	"plotter"
-	"gerberstates"
 )
 
 /*
@@ -872,10 +871,10 @@ func deg2Rad(a float64) float64 {
 
 /*
 *********************** region (polygon) processor ***********************************
- */
+*/
 
 type Polygon struct {
-	steps       *[]*gerberstates.State
+	steps       *[]*State
 	polX        *[]float64
 	polY        *[]float64
 	numVertices int
@@ -883,7 +882,7 @@ type Polygon struct {
 
 func NewPolygon() *Polygon {
 	retVal := new(Polygon)
-	steps := make([]*gerberstates.State, 0)
+	steps := make([]*State, 0)
 	retVal.steps = &steps
 	polX := make([]float64, 0)
 	polY := make([]float64, 0)
@@ -892,7 +891,7 @@ func NewPolygon() *Polygon {
 	return retVal
 }
 
-func (rc *Render) AddStepToPolygon(step *gerberstates.State) int {
+func (rc *Render) AddStepToPolygon(step *State) int {
 	*rc.PolygonPtr.steps = append(*rc.PolygonPtr.steps, step)
 	return len(*rc.PolygonPtr.steps)
 }
@@ -999,9 +998,9 @@ func (rc *Render) RenderPolygon() {
 }
 
 /*
- interpolate circle by straight lines
+interpolate circle by straight lines
 */
-func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerberstates.State) {
+func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *State) {
 	var xc, yc float64 // DrawArc center coordinates in mm
 	if st.QMode == QuadModeSingle {
 		// we have to find the sign of the I and J
@@ -1118,6 +1117,5 @@ func (rc *Render) addToCorners(ax, ay float64) (float64, bool) {
 func transformCoord(inc float64, res float64) int {
 	return int(inc / res)
 }
-
 
 // ################################### EOF ###############################################

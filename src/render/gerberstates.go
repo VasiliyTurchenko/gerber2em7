@@ -1,22 +1,23 @@
 /*
 ################################## State machine ######################################
 */
-package gerberstates
+package render
 
 import (
-	"apertures"
+
 	"container/list"
 	"errors"
 	"fmt"
+	. "gerberbasetypes"
 	"os"
+	"regions"
+	"srblocks"
 	"strconv"
 	"strings"
-	."xy"
-	."gerberbasetypes"
-	"srblocks"
-	"regions"
-//	"apertures"
+	. "xy"
 )
+
+
 
 /*
 	The State object represents the state of the state machine before processing
@@ -27,8 +28,8 @@ type State struct {
 	StepNumber  int     // step number
 	Polarity    PolType // %LPD*% or %LPC*%
 	QMode       QuadMode
-	CurrentAp   *apertures.Aperture // aperture code
-	IpMode      IPmode    // interpolation mode
+	CurrentAp   *Aperture // aperture code
+	IpMode      IPmode              // interpolation mode
 	PrevCoord   *XY
 	Coord       *XY
 	Action      ActType
@@ -214,8 +215,8 @@ func (step *State) CreateStep(
 		tc, err := strconv.Atoi(s[1 : len(s)-1])
 		checkError(err, 501)
 		for k := apertList.Front(); k != nil; k = k.Next() {
-			if k.Value.(*apertures.Aperture).GetCode() == tc {
-				step.CurrentAp = k.Value.(*apertures.Aperture)
+			if k.Value.(*Aperture).GetCode() == tc {
+				step.CurrentAp = k.Value.(*Aperture)
 				break
 			}
 		}

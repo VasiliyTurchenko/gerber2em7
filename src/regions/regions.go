@@ -86,4 +86,3 @@ func (region *Region) IsRegionOpened() (bool, error) {
 		return false, nil
 	}
 }
-

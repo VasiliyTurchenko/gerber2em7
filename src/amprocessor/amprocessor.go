@@ -13,7 +13,7 @@ type AMPrimitive interface {
 	// takes the state with the FLASH opcode, where aperture code is macro
 	// returns the sequence of steps which allow to draw this aperture
 	//	Render(int, int, color.RGBA)
-	Render(int, int,/* *render.Render*/)
+	Render(int, int /* *render.Render*/)
 
 	// returns a string representation of thr primitive
 	String() string

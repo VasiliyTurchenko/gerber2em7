@@ -23,7 +23,6 @@ const (
 	AptypeBlock
 )
 
-
 func (ga GerberApType) String() string {
 	switch ga {
 	case AptypeCircle:
@@ -43,7 +42,6 @@ func (ga GerberApType) String() string {
 	return "Unknown aperture type"
 
 }
-
 
 type PolType int
 
@@ -129,4 +127,3 @@ func (ipm IPmode) String() string {
 	}
 	return "Unknown interpolation"
 }
-

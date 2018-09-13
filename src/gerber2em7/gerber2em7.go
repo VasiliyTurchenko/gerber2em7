@@ -1,10 +1,9 @@
 // Copyright 2018 Vasily Turchenko <turchenkov@gmail.com>. All rights reserved.
 // Use of this source code is free
 
-package main
+package gerber2em7
 
 import (
-	"blockapertures"
 	"bufio"
 	"configurator"
 	"container/list"
@@ -24,13 +23,14 @@ import (
 )
 
 import (
-	. "xy"
+
 	. "gerberbasetypes"
 	"plotter"
 	"render"
-	"gerberstates"
-	"apertures"
+	. "xy"
 )
+
+
 
 // TODO get rid of it
 var verboseLevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
@@ -47,7 +47,7 @@ var (
 	plotterInstance *plotter.Plotter
 
 	// array of steps to be executed to generate PCB
-	arrayOfSteps []*gerberstates.State
+	arrayOfSteps []*render.State
 
 	// the list of regions
 	regionsList *list.List
@@ -56,7 +56,7 @@ var (
 	aperturesList *list.List
 
 	// the map consisting all the aperture blocks
-	apertureBlocks map[string]*blockapertures.BlockAperture
+	apertureBlocks map[string]*render.BlockAperture
 
 	// format specification for the gerber file
 	fSpec *FormatSpec
@@ -65,7 +65,7 @@ var (
 	renderContext *render.Render
 )
 
-func main() {
+func Main() {
 
 	fmt.Println(returnAppInfo(*verboseLevel))
 
@@ -141,7 +141,7 @@ func main() {
 	/* ---------------------- extract apertures and aperture blocks  --------------------- */
 	// and aperture macros - TODO!!!!!
 	aperturesList = list.New()
-	apertureBlocks = make(map[string]*blockapertures.BlockAperture)
+	apertureBlocks = make(map[string]*render.BlockAperture)
 	apertureBlockOpened := make([]string, 0)
 
 	gerberStrings2 := stor.NewStorage()
@@ -162,12 +162,12 @@ func main() {
 			if last < 0 {
 				panic("No more open aperture blocks left!")
 			}
-			aperture := new(apertures.Aperture)
+			aperture := new(render.Aperture)
 			aperture.Code = apertureBlocks[apertureBlockOpened[last]].Code
 			aperture.Type = AptypeBlock
 			aperture.BlockPtr = apertureBlocks[apertureBlockOpened[last]]
-			aperture.BlockPtr.StepsPtr = make([]*gerberstates.State, len(aperture.BlockPtr.BodyStrings)+1)
-			aperture.BlockPtr.StepsPtr[0] = gerberstates.NewState()
+			aperture.BlockPtr.StepsPtr = make([]*render.State, len(aperture.BlockPtr.BodyStrings)+1)
+			aperture.BlockPtr.StepsPtr[0] = render.NewState()
 			apertureBlockOpened = apertureBlockOpened[:last]
 			aperturesList.PushBack(aperture) // store correct aperture
 			continue
@@ -176,7 +176,7 @@ func main() {
 		if strings.HasPrefix(gerberString, GerberApertureBlockDef) &&
 			strings.HasSuffix(gerberString, "*%") {
 			// aperture block found
-			apBlk := new(blockapertures.BlockAperture)
+			apBlk := new(render.BlockAperture)
 			apBlk.StartStringNum = i
 			apBlk.Code, err = strconv.Atoi(gerberString[4 : len(gerberString)-2])
 			apertureBlocks[gerberString] = apBlk
@@ -195,7 +195,7 @@ func main() {
 		if strings.HasPrefix(gerberString, GerberApertureDef) &&
 			strings.HasSuffix(gerberString, "*%") {
 			// possible aperture definition found
-			aperture := new(apertures.Aperture)
+			aperture := new(render.Aperture)
 			apErr := aperture.Init(gerberString[4:len(gerberString)-2], fSpec)
 			checkError(apErr, 500)
 			aperturesList.PushBack(aperture) // store correct aperture
@@ -213,7 +213,7 @@ func main() {
 	saveIntermediate(gerberStrings, "before_steps.txt")
 
 	// Main sequence of steps
-	arrayOfSteps = make([]*gerberstates.State, gerberStrings.Len()+1)
+	arrayOfSteps = make([]*render.State, gerberStrings.Len()+1)
 	// Global list of Regions
 	regionsList = list.New()
 
@@ -225,7 +225,7 @@ func main() {
 	}
 
 	fmt.Println()
-	printMemUsage("Memory usage before creating main step sequence:")
+	printMemUsage("Memory usage before creating Main step sequence:")
 
 	// patch
 	// TODO get rid of the patch!
@@ -242,7 +242,7 @@ func main() {
 	//	var touch bool = false
 	for {
 		touch := false
-		arrayOfSteps2 := make([]*gerberstates.State, 0)
+		arrayOfSteps2 := make([]*render.State, 0)
 		for k := 1; k < len(arrayOfSteps); k++ {
 			if arrayOfSteps[k].CurrentAp != nil &&
 				arrayOfSteps[k].CurrentAp.Type == AptypeBlock &&
@@ -251,7 +251,7 @@ func main() {
 					if i == 0 { // skip root element
 						continue
 					}
-					newStep := new(gerberstates.State)
+					newStep := new(render.State)
 					newStep.CopyOfWithOffset(bs, arrayOfSteps[k].Coord.GetX(), arrayOfSteps[k].Coord.GetY())
 					if i == 1 {
 						newStep.PrevCoord = arrayOfSteps[k].PrevCoord
@@ -564,7 +564,6 @@ func squeezeString(inString string) string {
 	return inString
 }
 
-
 // this function returns application info
 func returnAppInfo(verbLevel int) string {
 	var header = "Gerber to EM-7052 translation tool\n"
@@ -593,7 +592,7 @@ func returnAppInfo(verbLevel int) string {
 // NumberOfSteps - number of the created steps started from 1
 
 func createStepSequence(src *[]string,
-	resSteps *[]*gerberstates.State,
+	resSteps *[]*render.State,
 	apertl *list.List,
 	regl *list.List,
 	fSpec *FormatSpec) (NumberOfSteps int) {
@@ -601,12 +600,12 @@ func createStepSequence(src *[]string,
 	stepNumber := 1 // step number
 	stepCompleted := true
 	// create the root step with default properties
-	(*resSteps)[0] = gerberstates.NewState()
+	(*resSteps)[0] = render.NewState()
 	// process string by string
-	var step *gerberstates.State
+	var step *render.State
 	for i, s := range *src {
 		if stepCompleted == true {
-			step = new(gerberstates.State)
+			step = new(render.State)
 			*step = *(*resSteps)[stepNumber-1]
 			step.Coord = nil
 			step.PrevCoord = nil
@@ -614,19 +613,19 @@ func createStepSequence(src *[]string,
 		//		fmt.Printf(">>>>>%v  %v\n", stepNumber, arrayOfSteps[stepNumber])
 		createStepResult := step.CreateStep(&s, (*resSteps)[stepNumber-1], apertl, regl, i, fSpec)
 		switch createStepResult {
-		case gerberstates.SCResultNextString:
+		case render.SCResultNextString:
 			fallthrough
-		case gerberstates.SCResultSkipString:
+		case render.SCResultSkipString:
 			stepCompleted = false
 			continue
-		case gerberstates.SCResultStepCompleted:
+		case render.SCResultStepCompleted:
 			step.PrevCoord = (*resSteps)[stepNumber-1].Coord
 			step.StepNumber = stepNumber
 			(*resSteps)[stepNumber] = step
 			stepNumber++
 			stepCompleted = true
 			continue
-		case gerberstates.SCResultStop:
+		case render.SCResultStop:
 			step.StepNumber = stepNumber
 			(*resSteps)[stepNumber] = step
 			step.Coord = (*resSteps)[stepNumber-1].Coord
@@ -688,14 +687,14 @@ func timeInfo(prev time.Time) {
 	fmt.Print(out)
 }
 
-func unwindSRBlock(steps *[]*gerberstates.State, k int) (*[]*gerberstates.State, int) {
+func unwindSRBlock(steps *[]*render.State, k int) (*[]*render.State, int) {
 	firstSRStep := (*steps)[k]
 	// once came into, no return until sr block stays not fully processed
 	kStop := k + firstSRStep.SRBlock.NSteps() // stop value
 	numXSteps := firstSRStep.SRBlock.NumX()
 	numYSteps := firstSRStep.SRBlock.NumY()
 	numberOfStepsInSRBlock := firstSRStep.SRBlock.NSteps() * numXSteps * numYSteps
-	SRBlockSteps := make([]*gerberstates.State, numberOfStepsInSRBlock)
+	SRBlockSteps := make([]*render.State, numberOfStepsInSRBlock)
 	stepCounter := 0
 	var addX, addY float64
 	for j := 0; j < numYSteps; j++ {
@@ -703,7 +702,7 @@ func unwindSRBlock(steps *[]*gerberstates.State, k int) (*[]*gerberstates.State,
 		for i := 0; i < numXSteps; i++ {
 			addX = float64(i) * firstSRStep.SRBlock.DX()
 			for kk := k; kk < kStop; kk++ {
-				SRBlockSteps[stepCounter] = gerberstates.NewState()
+				SRBlockSteps[stepCounter] = render.NewState()
 				if kk == k {
 					SRBlockSteps[stepCounter].PrevCoord = NewXY()
 				} else {
@@ -720,7 +719,7 @@ func unwindSRBlock(steps *[]*gerberstates.State, k int) (*[]*gerberstates.State,
 /*
 **************************** step processor *******************************
  */
-func ProcessStep(stepData *gerberstates.State) {
+func ProcessStep(stepData *render.State) {
 
 	//	stepData.Print()
 
@@ -894,6 +893,5 @@ func checkError(err error, exitCode int) {
 		os.Exit(exitCode)
 	}
 }
-
 
 /* ########################################## EOF #########################################################*/

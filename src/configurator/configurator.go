@@ -16,9 +16,9 @@ const (
 	CfgRendererOutFile           string = "renderer.OutFile"
 	CfgRendererGeneratePNG       string = "renderer.GeneratePNG"
 
-	CfgPlotterOutFile string = "plotter.OutFile"
-	CfgPlotterXRes string = "plotter.xRes"
-	CfgPlotterYRes string ="plotter.yRes"
+	CfgPlotterOutFile  string = "plotter.OutFile"
+	CfgPlotterXRes     string = "plotter.xRes"
+	CfgPlotterYRes     string = "plotter.yRes"
 	CfgPlotterPenSizes string = "plotter.PenSizes"
 )
 
@@ -26,7 +26,7 @@ const (
 	CfgRenderDrawContours    string = "renderer.DrawContours"
 	CfgRenderDrawMoves       string = "renderer.DrawMoves"
 	CfgRenderDrawOnlyRegions string = "renderer.DrawOnlyRegions"
-	CfgPrintRegionInfo string = "renderer.PrintRegionInfo"
+	CfgPrintRegionInfo       string = "renderer.PrintRegionInfo"
 )
 
 func SetDefaults(v *viper.Viper) {

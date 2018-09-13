@@ -4,6 +4,7 @@
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/src/github.com/fsnotify/fsnotify" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/src/github.com/hashicorp/hcl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/src/github.com/kisielk/godepgraph" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/src/github.com/magiconair/properties" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/src/github.com/mitchellh/mapstructure" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/src/github.com/pelletier/go-toml" vcs="Git" />

@@ -1,11 +1,11 @@
 //
 // functions related to parsing gerber files
 // Apertures support
-package apertures
+package render
 
 import (
-	"blockapertures"
 	"errors"
+	"fmt"
 	. "gerberbasetypes"
 	"strconv"
 	"strings"
@@ -14,6 +14,26 @@ import (
 )
 
 
+type BlockAperture struct {
+	StartStringNum int
+	Code           int
+	BodyStrings    []string
+	StepsPtr       []*State
+}
+
+//Print info
+func (ba *BlockAperture) Print() {
+	fmt.Println("\n***** Block aperture *****")
+	fmt.Println("\tBlock aperture code:", ba.Code)
+	fmt.Println("\tSource strings:")
+	for b := range ba.BodyStrings {
+		fmt.Println("\t\t", b, "  ", ba.BodyStrings[b])
+	}
+	fmt.Println("\tResulting steps:")
+	for b := range ba.StepsPtr {
+		ba.StepsPtr[b].Print()
+	}
+}
 
 
 type Aperture struct {
@@ -26,7 +46,7 @@ type Aperture struct {
 	HoleDiameter float64
 	Vertices     int
 	RotAngle     float64
-	BlockPtr     *blockapertures.BlockAperture
+	BlockPtr     *BlockAperture
 //	MacroPtr     *amprocessor.ApertureMacro
 }
 
@@ -141,3 +161,4 @@ func (apert *Aperture) Init(sourceString string, fs *FormatSpec) error {
 fExit:
 	return err
 }
+
