@@ -1,8 +1,10 @@
 //Aperture Macros support
-package gerbparser
+package amprocessor
 
 import (
 	"errors"
+	"fmt"
+	"render"
 	"strconv"
 	"strings"
 )
@@ -10,14 +12,15 @@ import (
 type AMPrimitive interface {
 	// takes the state with the FLASH opcode, where aperture code is macro
 	// returns the sequence of steps which allow to draw this aperture
-	Render (*State) *[]*State
+	//	Render(int, int, color.RGBA)
+	Render(int, int,/* *render.Render*/)
 
 	// returns a string representation of thr primitive
 	String() string
 }
 
 // creates and returns new object
-func NewAMPrimitive(amp AMPrimitiveType, modifStrings []string) AMPrimitive {
+func NewAMPrimitive(amp AMPrimitiveType, modifStrings []interface{}) AMPrimitive {
 	switch amp {
 	case AMPrimitive_Comment:
 		return AMPrimitiveComment{AMPrimitive_Comment, modifStrings}
@@ -40,7 +43,6 @@ func NewAMPrimitive(amp AMPrimitiveType, modifStrings []string) AMPrimitive {
 	}
 
 }
-
 
 type AMPrimitiveType int
 
@@ -80,194 +82,162 @@ const (
 	AMPrimitive_Thermal    AMPrimitiveType = 7
 )
 
-//type AMPrimitive struct {
-//	PrimitiveType AMPrimitiveType
-//	AMModifiers   []string
-//}
-
 type AMPrimitiveComment struct {
 	PrimitiveType AMPrimitiveType
-	AMModifiers   []string
+	AMModifiers   []interface{}
 }
 
 func (amp AMPrimitiveComment) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
-	subStr1 := "\t\tmodifier("
-	subStr2 := ")="
-	subStr3 := "\n"
-	for i, s := range amp.AMModifiers {
-		SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
-		retVal = retVal + SubStr
-	}
+	//subStr1 := "\t\tmodifier("
+	//subStr2 := ")="
+	//subStr3 := "\n"
+	//for i, s := range amp.AMModifiers {
+	//	SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
+	//	retVal = retVal + SubStr
+	//}
 	return retVal
 }
 
-func (amp AMPrimitiveComment) Render (step *State) *[]*State {
-	return &[]*State{step}
+func (amp AMPrimitiveComment) Render(x0, y0 int /*, context *render.Render*/) {
+	return
 }
 
-
+// ********************************************* CIRCLE *********************************************************
 type AMPrimitiveCircle struct {
 	PrimitiveType AMPrimitiveType
-	AMModifiers   []string
+	AMModifiers   []interface{}
 }
 
 func (amp AMPrimitiveCircle) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
-	subStr1 := "\t\tmodifier("
-	subStr2 := ")="
-	subStr3 := "\n"
-	for i, s := range amp.AMModifiers {
-		SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
-		retVal = retVal + SubStr
-	}
+	retVal = retVal + ArrayInfo(amp.AMModifiers, []string{"Exposure", "Diameter", "Center X", "Center Y", "Rotation"})
 	return retVal
 }
 
-func (amp AMPrimitiveCircle) Render (step *State) *[]*State {
-	return &[]*State{step}
+func (amp AMPrimitiveCircle) Render(x0, y0 int /*, context *render.Render*/) {
+
+	return
 }
 
-
+// ***************************************** VECTOR LINE *****************************************************
 type AMPrimitiveVectLine struct {
 	PrimitiveType AMPrimitiveType
-	AMModifiers   []string
+	AMModifiers   []interface{}
 }
 
 func (amp AMPrimitiveVectLine) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
-	subStr1 := "\t\tmodifier("
-	subStr2 := ")="
-	subStr3 := "\n"
-	for i, s := range amp.AMModifiers {
-		SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
-		retVal = retVal + SubStr
-	}
+	// Exposure, Width, Start X, Start Y, End X, End Y, Rotation
+	retVal = retVal + ArrayInfo(amp.AMModifiers, []string{"Exposure", "Width", "Start X", "Start Y", "End X", "End Y", "Rotation"})
 	return retVal
 }
 
-func (amp AMPrimitiveVectLine) Render (step *State) *[]*State {
-	return &[]*State{step}
+func (amp AMPrimitiveVectLine) Render(x0, y0 int /*, context *render.Render*/) {
+	return
 }
 
-
+// ***************************************** CENTER LINE *****************************************************
 type AMPrimitiveCenterLine struct {
 	PrimitiveType AMPrimitiveType
-	AMModifiers   []string
+	AMModifiers   []interface{}
 }
 
 func (amp AMPrimitiveCenterLine) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
-	subStr1 := "\t\tmodifier("
-	subStr2 := ")="
-	subStr3 := "\n"
-	for i, s := range amp.AMModifiers {
-		SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
-		retVal = retVal + SubStr
-	}
+	// Exposure, Width, Hight, Center X, Center Y, Rotation
+	retVal = retVal + ArrayInfo(amp.AMModifiers, []string{"Exposure", "Width", "Hight", "Center X", "Center Y", "Rotation"})
 	return retVal
 }
 
-func (amp AMPrimitiveCenterLine) Render (step *State) *[]*State {
-	return &[]*State{step}
+func (amp AMPrimitiveCenterLine) Render(x0, y0 int /*, context *render.Render*/) {
+	return
 }
 
+// ***************************************** OUTLINE *****************************************************
 type AMPrimitiveOutLine struct {
 	PrimitiveType AMPrimitiveType
-	AMModifiers   []string
+	AMModifiers   []interface{}
 }
 
 func (amp AMPrimitiveOutLine) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
-	subStr1 := "\t\tmodifier("
-	subStr2 := ")="
-	subStr3 := "\n"
-	for i, s := range amp.AMModifiers {
-		SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
-		retVal = retVal + SubStr
+	//Exposure, # vertices, Start X, Start Y, Subsequent points..., Rotation
+	retVal = retVal + ArrayInfo(amp.AMModifiers[:4], []string{"Exposure", "# vertices", "Start X", "Start Y"})
+	numPairs := (len(amp.AMModifiers) - 5) / 2
+	var i int
+	for i = 0; i < numPairs; i++ {
+		retVal = retVal + ArrayInfo(amp.AMModifiers[4+i*2:6+i*2], []string{"Vertice " + strconv.Itoa(i) + " X", "Vertice " + strconv.Itoa(i) + " Y"})
 	}
+	retVal = retVal + ArrayInfo(amp.AMModifiers[len(amp.AMModifiers)-1:], []string{"Rotation"})
 	return retVal
 }
 
-func (amp AMPrimitiveOutLine) Render (step *State) *[]*State {
-	return &[]*State{step}
+func (amp AMPrimitiveOutLine) Render(x0, y0 int /*, context *render.Render*/) {
+	return
 }
 
-
+// ***************************************** POLYGON *****************************************************
 type AMPrimitivePolygon struct {
 	PrimitiveType AMPrimitiveType
-	AMModifiers   []string
+	AMModifiers   []interface{}
 }
 
 func (amp AMPrimitivePolygon) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
-	subStr1 := "\t\tmodifier("
-	subStr2 := ")="
-	subStr3 := "\n"
-	for i, s := range amp.AMModifiers {
-		SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
-		retVal = retVal + SubStr
-	}
+	//Exposure, # vertices, Center X, Center Y, Diameter, Rotation
+	retVal = retVal + ArrayInfo(amp.AMModifiers, []string{"Exposure", "# vertices", "Center X", "Center Y", "Diameter", "Rotation"})
 	return retVal
 }
 
-func (amp AMPrimitivePolygon) Render (step *State) *[]*State {
-	return &[]*State{step}
+func (amp AMPrimitivePolygon) Render(x0, y0 int /*, context *render.Render*/) {
+	return
 }
 
-
+// ***************************************** MOIRE *****************************************************
 type AMPrimitiveMoire struct {
 	PrimitiveType AMPrimitiveType
-	AMModifiers   []string
+	AMModifiers   []interface{}
 }
 
 func (amp AMPrimitiveMoire) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
-	subStr1 := "\t\tmodifier("
-	subStr2 := ")="
-	subStr3 := "\n"
-	for i, s := range amp.AMModifiers {
-		SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
-		retVal = retVal + SubStr
-	}
+	//Center X, Center Y, Outer diameter rings, Ring thickness, Gap, Max # rings, Crosshair thickness, Crosshair length, Rotation
+	retVal = retVal + ArrayInfo(amp.AMModifiers,
+		[]string{"Center X", "Center Y", "Outer diameter rings", "Ring thickness", "Gap", "Max # rings", "Crosshair thickness", "Crosshair length", "Rotation"})
 	return retVal
 }
 
-func (amp AMPrimitiveMoire) Render (step *State) *[]*State {
-	return &[]*State{step}
+func (amp AMPrimitiveMoire) Render(x0, y0 int /*, context *render.Render*/) {
+	return
 }
 
-
+// ***************************************** THERMAL *****************************************************
 type AMPrimitiveThermal struct {
 	PrimitiveType AMPrimitiveType
-	AMModifiers   []string
+	AMModifiers   []interface{}
 }
 
 func (amp AMPrimitiveThermal) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
-	subStr1 := "\t\tmodifier("
-	subStr2 := ")="
-	subStr3 := "\n"
-	for i, s := range amp.AMModifiers {
-		SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
-		retVal = retVal + SubStr
-	}
+	//Center X, Center Y, Outer diameter, Inner diameter, Gap, Rotation
+	retVal = retVal + ArrayInfo(amp.AMModifiers, []string{"Center X", "Center Y", "Outer diameter", "Inner diameter", "Gap", "Rotation"})
 	return retVal
 }
 
-func (amp AMPrimitiveThermal) Render (step *State) *[]*State {
-	return &[]*State{step}
+func (amp AMPrimitiveThermal) Render(x0, y0 int /*, context *render.Render*/) {
+	return
 }
 
-
+// ********************************************* AM container *************************************************
 type AMVariable struct {
 	Name           string
 	Value          string
@@ -296,7 +266,7 @@ func (am ApertureMacro) String() string {
 	}
 	retVal = retVal + "Primitives:\n"
 	for i := range am.Primitives {
-		retVal = retVal + "\t\t" + am.Primitives[i].String() + "\n"
+		retVal = retVal + "\t" + am.Primitives[i].String() + "\n"
 	}
 	return retVal
 }
@@ -317,7 +287,7 @@ func NewApertureMacro(src string) (*ApertureMacro, error) {
 	for _, s := range splittedStr[1:] {
 		s = strings.TrimSpace(s)
 		if strings.HasPrefix(s, "0 ") {
-			retVal.Comments = append(retVal.Comments, s[3:])
+			retVal.Comments = append(retVal.Comments, s[2:])
 			continue
 		}
 
@@ -344,12 +314,62 @@ func NewApertureMacro(src string) (*ApertureMacro, error) {
 			var primType AMPrimitiveType
 			primType = AMPrimitiveType(primTypeI)
 			modifiersArr := strings.Split(s[commaPos+1:], ",")
+			modifInterfaceArr := make([]interface{}, len(modifiersArr))
 			for i := range modifiersArr {
-				modifiersArr[i] = strings.TrimSpace(modifiersArr[i])
+				modifInterfaceArr[i] = strings.TrimSpace(modifiersArr[i])
 			}
-			retVal.Primitives = append(retVal.Primitives, NewAMPrimitive(primType, modifiersArr))
+			retVal.Primitives = append(retVal.Primitives, NewAMPrimitive(primType, modifInterfaceArr))
 		}
 	}
-
 	return retVal, nil
+}
+
+func (am ApertureMacro) Render(x0, y0 int, context *render.Render) {
+
+	for i := range am.Primitives {
+		am.Primitives[i].Render(x0, y0 /*, context*/)
+	}
+
+	return
+}
+
+/*
+	auxiliary functions
+*/
+
+func ArrayInfo(inArray []interface{}, itemNames []string) string {
+
+	// each step constructs the sub-string
+	// \t%itemname% = %itemValue%\n
+	retVal := ""
+
+	var limIn int = len(inArray)
+	var limIt int = len(itemNames)
+	var i int = 0
+
+	for i < limIn || i < limIt {
+		subStr1 := "\t"
+		if i < limIt {
+			subStr1 = subStr1 + itemNames[i]
+		} else {
+			subStr1 = subStr1 + "<unnamed>"
+		}
+
+		subStr2 := " = "
+		if i < limIn {
+			switch v := inArray[i].(type) {
+			case string:
+				subStr2 = subStr2 + v + "\n"
+			case fmt.Stringer:
+				subStr2 = subStr2 + v.String() + "\n"
+			default:
+				subStr2 = subStr2 + fmt.Sprintf("%v", v) + "\n"
+			}
+		} else {
+			subStr2 = subStr2 + "<empty>\n"
+		}
+		retVal = retVal + subStr1 + subStr2
+		i++
+	}
+	return retVal
 }

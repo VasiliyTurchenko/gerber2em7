@@ -4,21 +4,18 @@ import (
 	"configurator"
 	"errors"
 	"fmt"
-	"gerbparser"
 	"github.com/spf13/viper"
 	"image"
 	"image/color"
 	"math"
 	"os"
-	"plotter"
 	"strconv"
-
-	//	"regions"
 )
 
-const (
-	MaxInt = int(^uint(0) >> 1)
-	MinInt = int(-MaxInt - 1)
+import (
+	."gerberbasetypes"
+	"plotter"
+	"gerberstates"
 )
 
 /*
@@ -85,7 +82,7 @@ type Render struct {
 	ObRoundCounter    int
 
 	// polygon being processed
-	polygonPtr *Polygon
+	PolygonPtr *Polygon
 }
 
 func NewRender(plotter *plotter.Plotter, viper *viper.Viper, minX, minY, maxX, maxY float64) *Render {
@@ -120,8 +117,8 @@ func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper, minX, minY, max
 	rc.LimitsX1 = int((rc.MaxX - rc.MinX) / float64(rc.XRes))
 	rc.LimitsY1 = int((rc.MaxY - rc.MinY) / float64(rc.YRes))
 
-	maxLimX1 := int(float64(rc.CanvasWidth)/float64(rc.XRes))
-	maxLimY1 := int(float64(rc.CanvasHeight)/float64(rc.YRes))
+	maxLimX1 := int(float64(rc.CanvasWidth) / float64(rc.XRes))
+	maxLimY1 := int(float64(rc.CanvasHeight) / float64(rc.YRes))
 
 	if rc.LimitsX1 > maxLimX1 {
 		fmt.Println("Warning: the PCB size X is bigger than plotter working area!")
@@ -212,7 +209,7 @@ func (rc *Render) setPoint(x, y, pointSize int, col color.Color) {
 }
 
 // for D01 commands
-func (rc *Render) drawByRectangleAperture(x0, y0, x1, y1, apSizeX, apSizeY int, col color.Color) {
+func (rc *Render) DrawByRectangleAperture(x0, y0, x1, y1, apSizeX, apSizeY int, col color.Color) {
 
 	var w, h, xOrigin, yOrigin int
 
@@ -235,7 +232,7 @@ func (rc *Render) drawByRectangleAperture(x0, y0, x1, y1, apSizeX, apSizeY int, 
 		w = apSizeX
 		// draw by pen from x0,y0 to rectangle's origin
 		rc.drawByBrezenham(x0, y0, xOrigin, yOrigin, rc.PointSizeI, col)
-		rc.drawFilledRectangle(xOrigin, yOrigin, w, h, col)
+		rc.DrawFilledRectangle(xOrigin, yOrigin, w, h, col)
 		// draw back by pen from rectangle's origin to x1, y1
 		rc.drawByBrezenham(xOrigin, yOrigin, x1, y1, rc.PointSizeI, col)
 		return
@@ -247,14 +244,14 @@ func (rc *Render) drawByRectangleAperture(x0, y0, x1, y1, apSizeX, apSizeY int, 
 		h = apSizeY
 		// draw by pen from x0,y0 to rectangle's origin
 		rc.drawByBrezenham(x0, y0, xOrigin, yOrigin, rc.PointSizeI, col)
-		rc.drawFilledRectangle(xOrigin, yOrigin, w, h, col)
+		rc.DrawFilledRectangle(xOrigin, yOrigin, w, h, col)
 		rc.drawByBrezenham(xOrigin, yOrigin, x1, y1, rc.PointSizeI, col)
 		return
 	}
 }
 
 // for D01 commands
-func (rc *Render) drawByCircleAperture(x0, y0, x1, y1, apDia int, col color.Color) {
+func (rc *Render) DrawByCircleAperture(x0, y0, x1, y1, apDia int, col color.Color) {
 	// save x0, y0, x1, y1
 	savedx0 := x0
 	savedy0 := y0
@@ -264,7 +261,7 @@ func (rc *Render) drawByCircleAperture(x0, y0, x1, y1, apDia int, col color.Colo
 	var xPen, yPen int
 	ptsz := rc.PointSizeI
 
-	rc.drawDonut(x0, y0, apDia, 0, col)
+	rc.DrawDonut(x0, y0, apDia, 0, col)
 
 	if y1 < y0 {
 		x0, y0, x1, y1 = x1, y1, x0, y0
@@ -281,10 +278,10 @@ func (rc *Render) drawByCircleAperture(x0, y0, x1, y1, apDia int, col color.Colo
 		xPen, yPen = rc.drawByBrezenham(savedx0, savedy0, xOrigin, yOrigin, ptsz, col)
 		w := x1 - x0
 		h := apDia
-		rc.drawFilledRectangle(xOrigin, yOrigin, w, h, col)
+		rc.DrawFilledRectangle(xOrigin, yOrigin, w, h, col)
 		// move pen back to original x1, y1 setPoint
 		xPen, yPen = rc.drawByBrezenham(xOrigin, yOrigin, savedx1, savedy1, ptsz, col)
-		rc.drawDonut(savedx1, savedy1, apDia, 0, col)
+		rc.DrawDonut(savedx1, savedy1, apDia, 0, col)
 		_, _ = xPen, yPen
 		return
 	}
@@ -297,10 +294,10 @@ func (rc *Render) drawByCircleAperture(x0, y0, x1, y1, apDia int, col color.Colo
 		w := apDia
 		// draw by pen to xOrigin, y Origin
 		xPen, yPen = rc.drawByBrezenham(savedx0, savedy0, xOrigin, yOrigin, ptsz, col)
-		rc.drawFilledRectangle(xOrigin, yOrigin, w, h, col)
+		rc.DrawFilledRectangle(xOrigin, yOrigin, w, h, col)
 		// move pen back to original x1, y1 setPoint
 		xPen, yPen = rc.drawByBrezenham(xOrigin, yOrigin, savedx1, savedy1, ptsz, col)
-		rc.drawDonut(savedx1, savedy1, apDia, 0, col)
+		rc.DrawDonut(savedx1, savedy1, apDia, 0, col)
 		_, _ = xPen, yPen
 		return
 	}
@@ -340,8 +337,8 @@ func (rc *Render) drawByCircleAperture(x0, y0, x1, y1, apDia int, col color.Colo
 	}
 	// draw back to saved x1, y1
 	xPen, yPen = rc.drawByBrezenham(nx1, ny1, savedx1, savedy1, ptsz, col)
-	// and final drawDonut
-	rc.drawDonut(savedx1, savedy1, apDia, 0, col)
+	// and final DrawDonut
+	rc.DrawDonut(savedx1, savedy1, apDia, 0, col)
 	_, _ = xPen, yPen
 }
 
@@ -350,7 +347,7 @@ func (rc *Render) drawByCircleAperture(x0, y0, x1, y1, apDia int, col color.Colo
 const strat int = 1 // zig-zag
 
 // draws a filled rectangle
-func (rc *Render) drawFilledRectangle(origX, origY, w, h int, col color.Color) {
+func (rc *Render) DrawFilledRectangle(origX, origY, w, h int, col color.Color) {
 
 	xPen := origX // real pen position
 	yPen := origY // real pen position
@@ -465,8 +462,8 @@ func (rc *Render) drawFilledRectangle(origX, origY, w, h int, col color.Color) {
 	rc.FilledRctCounter++
 }
 
-func (rc *Render) drawDonut(origX, origY, dia, holeDia int, col color.Color) {
-	// performs drawDonut (drawCircle) aperture flash
+func (rc *Render) DrawDonut(origX, origY, dia, holeDia int, col color.Color) {
+	// performs DrawDonut (drawCircle) aperture flash
 	radius := dia / 2
 	holeRadius := holeDia / 2
 	if rc.DrawContours == true {
@@ -524,7 +521,7 @@ func (rc *Render) drawCircle(x, y, r, ptsz int, col color.Color) {
 
 // Move pen function
 
-func (rc *Render) movePen(x1, y1, x2, y2 int, col color.Color) (int, int) {
+func (rc *Render) MovePen(x1, y1, x2, y2 int, col color.Color) (int, int) {
 	rc.MovePenCounters++
 	rc.MovePenDistance += math.Hypot(float64(x2-x1), float64(y2-y1))
 	newX := x2
@@ -713,11 +710,11 @@ func (rc *Render) bresenhamWithPattern(x1, y1, x2, y2, pointSize int, col color.
 
 // ARC functions
 // TODO test G:\gerbv-2.6.2\example\cslk fails!
-func (rc *Render) drawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm gerbparser.IPmode, qm gerbparser.QuadMode, col color.Color) error {
+func (rc *Render) DrawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm IPmode, qm QuadMode, col color.Color) error {
 
 	var xC, yC float64
 
-	if qm == gerbparser.QuadModeSingle {
+	if qm == QuadModeSingle {
 		// we have to find the sign of the I and J
 		fmt.Println("G74 hook")
 		return nil
@@ -774,7 +771,7 @@ func (rc *Render) drawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm ge
 	for i := 0; i < numArcs; i++ {
 		r := r - float64(i*rc.PointSizeI)
 
-		if ipm == gerbparser.IPModeCCwC {
+		if ipm == IPModeCCwC {
 			var ppx = 0
 			var ppy = 0
 			if Phi1 > Phi2 {
@@ -805,7 +802,7 @@ func (rc *Render) drawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm ge
 				ppy = ay
 			}
 
-		} else if ipm == gerbparser.IPModeCwC {
+		} else if ipm == IPModeCwC {
 			var ppx = 0
 			var ppy = 0
 			if Phi1 < Phi2 {
@@ -843,22 +840,22 @@ func (rc *Render) drawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm ge
 }
 
 // obround aperture flash
-func (rc *Render) drawObRound(centerX, centerY, width, height, holeDia int, color color.Color) {
+func (rc *Render) DrawObRound(centerX, centerY, width, height, holeDia int, color color.Color) {
 	var sideDia int
 	if width > height {
 		sideDia = height
-		rc.drawFilledRectangle(centerX, centerY, width-sideDia, height, color)
+		rc.DrawFilledRectangle(centerX, centerY, width-sideDia, height, color)
 		xd1 := centerX - (width / 2) + (sideDia / 2)
 		xd2 := centerX + (width / 2) - (sideDia / 2)
-		rc.drawDonut(xd1, centerY, sideDia, holeDia, color)
-		rc.drawDonut(xd2, centerY, sideDia, holeDia, color)
+		rc.DrawDonut(xd1, centerY, sideDia, holeDia, color)
+		rc.DrawDonut(xd2, centerY, sideDia, holeDia, color)
 	} else {
 		sideDia = width
-		rc.drawFilledRectangle(centerX, centerY, width, height-sideDia, color)
+		rc.DrawFilledRectangle(centerX, centerY, width, height-sideDia, color)
 		yd1 := centerY - (height / 2) + (sideDia / 2)
 		yd2 := centerY + (height / 2) - (sideDia / 2)
-		rc.drawDonut(centerX, yd1, sideDia, holeDia, color)
-		rc.drawDonut(centerX, yd2, sideDia, holeDia, color)
+		rc.DrawDonut(centerX, yd1, sideDia, holeDia, color)
+		rc.DrawDonut(centerX, yd2, sideDia, holeDia, color)
 	}
 	rc.ObRoundCounter++
 }
@@ -873,198 +870,20 @@ func deg2Rad(a float64) float64 {
 	return (a / 360) * (2 * math.Pi)
 }
 
-//
-func abs(x int) int {
-	switch {
-	case x >= 0:
-		return x
-	case x >= MinInt:
-		return -x
-	}
-	panic("math/int.Abs: invalid argument")
-}
-
-/*
-**************************** step processor *******************************
- */
-func (rc *Render) ProcessStep(stepData *gerbparser.State) {
-
-//	stepData.Print()
-
-	var Xp int
-	var Yp int
-	Xc := transformCoord(stepData.Coord.GetX()-rc.MinX, rc.XRes)
-	Yc := transformCoord(stepData.Coord.GetY()-rc.MinY, rc.YRes)
-	if stepData.PrevCoord == nil {
-		Xp = transformCoord(0-rc.MinX, rc.XRes)
-		Yp = transformCoord(0-rc.MinY, rc.YRes)
-	} else {
-		Xp = transformCoord(stepData.PrevCoord.GetX()-rc.MinX, rc.XRes)
-		Yp = transformCoord(stepData.PrevCoord.GetY()-rc.MinY, rc.YRes)
-	}
-
-	if stepData.Region != nil {
-		// process region
-		if rc.polygonPtr == nil {
-			rc.polygonPtr = newPolygon()
-		}
-		if rc.addStepToPolygon(stepData) == stepData.Region.GetNumXY() {
-			// we can process region
-			rc.renderPolygon()
-			rc.polygonPtr = nil
-		}
-	} else {
-		var stepColor color.RGBA
-		switch stepData.Action {
-		case gerbparser.OpcodeD01_DRAW: // draw
-			if stepData.Polarity == gerbparser.PolTypeDark {
-				stepColor = rc.LineColor
-			} else {
-				stepColor = rc.ClearColor
-			}
-
-			var apertureSize int
-			if abs(Xc-Xp) < (4*rc.PointSizeI) && abs(Yc-Yp) < (4*rc.PointSizeI) {
-				stepData.IpMode = gerbparser.IPModeLinear
-			}
-			if stepData.IpMode == gerbparser.IPModeLinear {
-				// linear interpolation
-				if rc.DrawOnlyRegionsMode != true {
-					if stepData.CurrentAp.Type == gerbparser.AptypeCircle {
-						apertureSize = transformCoord(stepData.CurrentAp.Diameter, rc.XRes)
-						rc.drawByCircleAperture(Xp, Yp, Xc, Yc, apertureSize, stepColor)
-					} else if stepData.CurrentAp.Type == gerbparser.AptypeRectangle {
-						// draw with rectangle aperture
-						w := transformCoord(stepData.CurrentAp.XSize, rc.XRes)
-						h := transformCoord(stepData.CurrentAp.YSize, rc.YRes)
-						rc.drawByRectangleAperture(Xp, Yp, Xc, Yc, w, h, stepColor)
-					} else {
-						fmt.Println("Error. Only solid drawCircle and solid rectangle may be used to draw.")
-						break
-					}
-				}
-			} else {
-				// non-linear interpolation
-				if rc.DrawOnlyRegionsMode != true {
-					if stepData.CurrentAp.Type == gerbparser.AptypeCircle {
-						apertureSize = transformCoord(stepData.CurrentAp.Diameter, rc.XRes)
-						var (
-							fXp, fYp float64
-						)
-						if stepData.PrevCoord == nil {
-							fXp = transformFloatCoord(0-rc.MinX, rc.XRes)
-							fYp = transformFloatCoord(0-rc.MinY, rc.YRes)
-						} else {
-							fXp = transformFloatCoord(stepData.PrevCoord.GetX()-rc.MinX, rc.XRes)
-							fYp = transformFloatCoord(stepData.PrevCoord.GetY()-rc.MinY, rc.YRes)
-						}
-
-						fXc := transformFloatCoord(stepData.Coord.GetX()-rc.MinX, rc.XRes)
-						fYc := transformFloatCoord(stepData.Coord.GetY()-rc.MinY, rc.YRes)
-						fI := transformFloatCoord(stepData.Coord.GetI(), rc.XRes)
-						fJ := transformFloatCoord(stepData.Coord.GetJ(), rc.YRes)
-
-						// Arcs require floats!
-						err:= rc.drawArc(fXp,
-							fYp,
-							fXc,
-							fYc,
-							fI,
-							fJ,
-							apertureSize,
-							stepData.IpMode,
-							stepData.QMode,
-							// TODO
-							rc.RegionColor)
-						if err != nil {
-							stepData.Print()
-							checkError(err, 998)
-						}
-						rc.drawDonut(Xp, Yp, apertureSize, 0, stepColor)
-						rc.drawDonut(Xc, Yc, apertureSize, 0, stepColor)
-					} else if stepData.CurrentAp.Type == gerbparser.AptypeRectangle {
-						fmt.Println("Arc drawing by rectangle aperture is not supported now.")
-					} else {
-						fmt.Println("Error. Only solid drawCircle and solid rectangle may be used to draw.")
-						break
-					}
-				}
-			}
-			//
-		case gerbparser.OpcodeD02_MOVE: // move
-			rc.movePen(Xp, Yp, Xc, Yc, rc.MovePenColor)
-		//
-		case gerbparser.OpcodeD03_FLASH: // flash
-			if rc.DrawOnlyRegionsMode != true {
-				rc.movePen(Xp, Yp, Xc, Yc, rc.MovePenColor)
-				if stepData.Polarity == gerbparser.PolTypeDark {
-					stepColor = rc.ApColor
-				} else {
-					stepColor = rc.ClearColor
-				}
-				w := transformCoord(stepData.CurrentAp.XSize, rc.XRes)
-				h := transformCoord(stepData.CurrentAp.YSize, rc.YRes)
-				d := transformCoord(stepData.CurrentAp.Diameter, rc.XRes)
-				hd := transformCoord(stepData.CurrentAp.HoleDiameter, rc.XRes)
-
-				switch stepData.CurrentAp.Type {
-				case gerbparser.AptypeRectangle:
-					rc.drawFilledRectangle(Xc, Yc, w, h, stepColor)
-				case gerbparser.AptypeCircle:
-					rc.drawDonut(Xc, Yc, d, hd, stepColor)
-				case gerbparser.AptypeObround:
-					if w == h {
-						rc.drawDonut(Xc, Yc, w, hd, stepColor)
-					} else {
-						rc.drawObRound(Xc, Yc, w, h, 0, rc.ObRoundColor)
-					}
-				case gerbparser.AptypePoly:
-					rc.drawDonut(Xc, Yc, d, hd, rc.MissedColor)
-					fmt.Println("Polygonal apertures ain't supported.")
-				default:
-					checkError(errors.New("bad aperture type found"), 501)
-					break
-				}
-			}
-		default:
-			checkError(errors.New("(rc *Render) ProcessStep(stepData *gerbparser.State) internal error. Bad opcode"), 666)
-			fmt.Println("")
-			break
-		}
-	}
-}
-
-/* some draw helpers */
-
-func transformCoord(inc float64, res float64) int {
-	return int(inc / res)
-}
-
-func transformFloatCoord(inc float64, res float64) float64 {
-	return inc / res
-}
-
-func checkError(err error, exitCode int) {
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(exitCode)
-	}
-}
-
 /*
 *********************** region (polygon) processor ***********************************
  */
 
 type Polygon struct {
-	steps       *[]*gerbparser.State
+	steps       *[]*gerberstates.State
 	polX        *[]float64
 	polY        *[]float64
 	numVertices int
 }
 
-func newPolygon() *Polygon {
+func NewPolygon() *Polygon {
 	retVal := new(Polygon)
-	steps := make([]*gerbparser.State, 0)
+	steps := make([]*gerberstates.State, 0)
 	retVal.steps = &steps
 	polX := make([]float64, 0)
 	polY := make([]float64, 0)
@@ -1073,66 +892,66 @@ func newPolygon() *Polygon {
 	return retVal
 }
 
-func (rc *Render) addStepToPolygon(step *gerbparser.State) int {
-	*rc.polygonPtr.steps = append(*rc.polygonPtr.steps, step)
-	return len(*rc.polygonPtr.steps)
+func (rc *Render) AddStepToPolygon(step *gerberstates.State) int {
+	*rc.PolygonPtr.steps = append(*rc.PolygonPtr.steps, step)
+	return len(*rc.PolygonPtr.steps)
 }
 
-func (rc *Render) renderPolygon() {
+func (rc *Render) RenderPolygon() {
 
-	if (*rc.polygonPtr.steps)[0].Action == gerbparser.OpcodeD02_MOVE {
-		*rc.polygonPtr.steps = (*rc.polygonPtr.steps)[1:]
+	if (*rc.PolygonPtr.steps)[0].Action == OpcodeD02_MOVE {
+		*rc.PolygonPtr.steps = (*rc.PolygonPtr.steps)[1:]
 	}
-	prev := (*rc.polygonPtr.steps)[0].PrevCoord
+	prev := (*rc.PolygonPtr.steps)[0].PrevCoord
 	// check if the region contains self-intersections or is not closed
-	for i := 0; i < len(*rc.polygonPtr.steps); i++ {
-		if (*rc.polygonPtr.steps)[i].Coord.Equals(prev, 0.001) {
+	for i := 0; i < len(*rc.PolygonPtr.steps); i++ {
+		if (*rc.PolygonPtr.steps)[i].Coord.Equals(prev, 0.001) {
 			if rc.PrintRegionInfo == true {
 				fmt.Println("Closed segment found with  ", i, "vertexes")
 			}
-			if i < len(*rc.polygonPtr.steps)-2 {
+			if i < len(*rc.PolygonPtr.steps)-2 {
 				fmt.Println("More than one segment in the region!")
-				fmt.Println("There is", (len(*rc.polygonPtr.steps) - 2 - i), "points are left out of the region")
+				fmt.Println("There is", (len(*rc.PolygonPtr.steps) - 2 - i), "points are left out of the region")
 			}
 			break
 		}
-		if i == len(*rc.polygonPtr.steps)-1 {
+		if i == len(*rc.PolygonPtr.steps)-1 {
 			// the segment is not closed!
 			fmt.Println("The segment is not closed!")
 			fmt.Println(prev.String())
-			fmt.Println((*rc.polygonPtr.steps)[0].Coord.String())
-			fmt.Println((*rc.polygonPtr.steps)[len(*rc.polygonPtr.steps)-2].Coord.String())
-			fmt.Println((*rc.polygonPtr.steps)[len(*rc.polygonPtr.steps)-1].Coord.String())
+			fmt.Println((*rc.PolygonPtr.steps)[0].Coord.String())
+			fmt.Println((*rc.PolygonPtr.steps)[len(*rc.PolygonPtr.steps)-2].Coord.String())
+			fmt.Println((*rc.PolygonPtr.steps)[len(*rc.PolygonPtr.steps)-1].Coord.String())
 			os.Exit(1000)
 		}
 	}
 
 	// let's create a array of nodes (vertices)
-	rc.polygonPtr.numVertices = len(*rc.polygonPtr.steps)
+	rc.PolygonPtr.numVertices = len(*rc.PolygonPtr.steps)
 	minYInPolygon := 100000000.0
 	maxYInPolygon := 0.0
-	for j := 0; j < rc.polygonPtr.numVertices; j++ {
-		if (*rc.polygonPtr.steps)[j].IpMode != gerbparser.IPModeLinear {
+	for j := 0; j < rc.PolygonPtr.numVertices; j++ {
+		if (*rc.PolygonPtr.steps)[j].IpMode != IPModeLinear {
 			//			rc.interpolate(&minYInPolygon, &maxYInPolygon, &steps[j])
-			rc.interpolate(&minYInPolygon, &maxYInPolygon, (*rc.polygonPtr.steps)[j])
+			rc.interpolate(&minYInPolygon, &maxYInPolygon, (*rc.PolygonPtr.steps)[j])
 		} else {
-			xj := ((*rc.polygonPtr.steps)[j].Coord.GetX() - rc.MinX) / rc.XRes
-			yj := ((*rc.polygonPtr.steps)[j].Coord.GetY() - rc.MinY) / rc.YRes
+			xj := ((*rc.PolygonPtr.steps)[j].Coord.GetX() - rc.MinX) / rc.XRes
+			yj := ((*rc.PolygonPtr.steps)[j].Coord.GetY() - rc.MinY) / rc.YRes
 			if yj < minYInPolygon {
 				minYInPolygon = yj
 			}
 			if yj > maxYInPolygon {
 				maxYInPolygon = yj
 			}
-			*rc.polygonPtr.polX = append(*rc.polygonPtr.polX, xj)
-			*rc.polygonPtr.polY = append(*rc.polygonPtr.polY, yj)
+			*rc.PolygonPtr.polX = append(*rc.PolygonPtr.polX, xj)
+			*rc.PolygonPtr.polY = append(*rc.PolygonPtr.polY, yj)
 		}
 	}
-	rc.polygonPtr.numVertices = len(*rc.polygonPtr.polX)
+	rc.PolygonPtr.numVertices = len(*rc.PolygonPtr.polX)
 
 	var nodes = 0
 	var nodeX []int
-	nodeX = make([]int, rc.polygonPtr.numVertices)
+	nodeX = make([]int, rc.PolygonPtr.numVertices)
 	var pixelY int
 
 	// take into account real plotter pen setPoint size
@@ -1145,12 +964,12 @@ func (rc *Render) renderPolygon() {
 	for pixelY = startY; pixelY < stopY; pixelY += rc.PointSizeI {
 		fPixelY := float64(pixelY)
 		nodes = 0
-		j := rc.polygonPtr.numVertices - 1
-		for i = 0; i < rc.polygonPtr.numVertices; i++ {
-			if ((*rc.polygonPtr.polY)[i] < fPixelY && (*rc.polygonPtr.polY)[j] >= fPixelY) ||
-				((*rc.polygonPtr.polY)[j] < fPixelY && (*rc.polygonPtr.polY)[i] >= fPixelY) {
-				nodeX[nodes] = int((*rc.polygonPtr.polX)[i] + ((fPixelY)-(*rc.polygonPtr.polY)[i])/
-					((*rc.polygonPtr.polY)[j]-(*rc.polygonPtr.polY)[i])*((*rc.polygonPtr.polX)[j]-(*rc.polygonPtr.polX)[i]))
+		j := rc.PolygonPtr.numVertices - 1
+		for i = 0; i < rc.PolygonPtr.numVertices; i++ {
+			if ((*rc.PolygonPtr.polY)[i] < fPixelY && (*rc.PolygonPtr.polY)[j] >= fPixelY) ||
+				((*rc.PolygonPtr.polY)[j] < fPixelY && (*rc.PolygonPtr.polY)[i] >= fPixelY) {
+				nodeX[nodes] = int((*rc.PolygonPtr.polX)[i] + ((fPixelY)-(*rc.PolygonPtr.polY)[i])/
+					((*rc.PolygonPtr.polY)[j]-(*rc.PolygonPtr.polY)[i])*((*rc.PolygonPtr.polX)[j]-(*rc.PolygonPtr.polX)[i]))
 				nodes++
 			}
 			j = i
@@ -1182,9 +1001,9 @@ func (rc *Render) renderPolygon() {
 /*
  interpolate circle by straight lines
 */
-func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser.State) {
-	var xc, yc float64 // drawArc center coordinates in mm
-	if st.QMode == gerbparser.QuadModeSingle {
+func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerberstates.State) {
+	var xc, yc float64 // DrawArc center coordinates in mm
+	if st.QMode == QuadModeSingle {
 		// we have to find the sign of the I and J
 		fmt.Println("G74 hook")
 		os.Exit(800)
@@ -1224,7 +1043,7 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 		fi2 = 360.0 - fi2
 	}
 
-	if st.IpMode == gerbparser.IPModeCCwC {
+	if st.IpMode == IPModeCCwC {
 		if fi1 > fi2 {
 			fi1 = -(360.0 - fi1)
 		}
@@ -1247,7 +1066,7 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 				break
 			}
 		}
-	} else if st.IpMode == gerbparser.IPModeCwC {
+	} else if st.IpMode == IPModeCwC {
 		if fi1 < fi2 {
 			fi2 = -(360.0 - fi2)
 		}
@@ -1278,20 +1097,27 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *gerbparser
 func (rc *Render) addToCorners(ax, ay float64) (float64, bool) {
 	ax = (ax - rc.MinX) / rc.XRes
 	ay = (ay - rc.MinY) / rc.YRes
-	if len(*rc.polygonPtr.polX) == 0 {
-		*rc.polygonPtr.polX = append(*rc.polygonPtr.polX, ax)
-		*rc.polygonPtr.polY = append(*rc.polygonPtr.polY, ay)
+	if len(*rc.PolygonPtr.polX) == 0 {
+		*rc.PolygonPtr.polX = append(*rc.PolygonPtr.polX, ax)
+		*rc.PolygonPtr.polY = append(*rc.PolygonPtr.polY, ay)
 		return ay, true
 	} else {
-		lastElement := len(*rc.polygonPtr.polX) - 1 // last element
-		if (math.Abs(ax-(*rc.polygonPtr.polX)[lastElement]) > rc.PointSize) ||
-			(math.Abs(ay-(*rc.polygonPtr.polY)[lastElement]) > rc.PointSize) {
-			*rc.polygonPtr.polX = append(*rc.polygonPtr.polX, ax)
-			*rc.polygonPtr.polY = append(*rc.polygonPtr.polY, ay)
+		lastElement := len(*rc.PolygonPtr.polX) - 1 // last element
+		if (math.Abs(ax-(*rc.PolygonPtr.polX)[lastElement]) > rc.PointSize) ||
+			(math.Abs(ay-(*rc.PolygonPtr.polY)[lastElement]) > rc.PointSize) {
+			*rc.PolygonPtr.polX = append(*rc.PolygonPtr.polX, ax)
+			*rc.PolygonPtr.polY = append(*rc.PolygonPtr.polY, ay)
 			return ay, true
 		}
 	}
 	return 0, false
 }
+
+/* some draw helpers */
+
+func transformCoord(inc float64, res float64) int {
+	return int(inc / res)
+}
+
 
 // ################################### EOF ###############################################

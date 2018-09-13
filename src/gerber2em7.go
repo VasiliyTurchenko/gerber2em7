@@ -4,24 +4,32 @@
 package main
 
 import (
+	"blockapertures"
 	"bufio"
 	"configurator"
 	"container/list"
 	"errors"
 	"flag"
 	"fmt"
-	"gerbparser"
 	"github.com/spf13/viper"
+	"image/color"
 
 	"image/png"
 	"os"
-	"plotter"
-	"render"
 	"runtime"
 	"strconv"
 	"strings"
 	stor "strings_storage"
 	"time"
+)
+
+import (
+	. "xy"
+	. "gerberbasetypes"
+	"plotter"
+	"render"
+	"gerberstates"
+	"apertures"
 )
 
 // TODO get rid of it
@@ -39,7 +47,7 @@ var (
 	plotterInstance *plotter.Plotter
 
 	// array of steps to be executed to generate PCB
-	arrayOfSteps []*gerbparser.State
+	arrayOfSteps []*gerberstates.State
 
 	// the list of regions
 	regionsList *list.List
@@ -48,10 +56,13 @@ var (
 	aperturesList *list.List
 
 	// the map consisting all the aperture blocks
-	apertureBlocks map[string]*gerbparser.BlockAperture
+	apertureBlocks map[string]*blockapertures.BlockAperture
 
 	// format specification for the gerber file
-	fSpec *gerbparser.FormatSpec
+	fSpec *FormatSpec
+
+	//render context
+	renderContext *render.Render
 )
 
 func main() {
@@ -92,7 +103,7 @@ func main() {
 
 	gerberStrings = stor.NewStorage()
 
-	fSpec = new(gerbparser.FormatSpec)
+	fSpec = new(FormatSpec)
 
 	inFile, err := os.Open(sourceFileName) // For read access.
 	defer inFile.Close()
@@ -119,7 +130,7 @@ func main() {
 	fs, err := searchFS(gerberStrings)
 	checkError(err, 301)
 
-	fSpec = new(gerbparser.FormatSpec)
+	fSpec = new(FormatSpec)
 	if fSpec.Init(fs, mo) == false {
 		fmt.Println("Can not parse:")
 		fmt.Println(fs)
@@ -130,7 +141,7 @@ func main() {
 	/* ---------------------- extract apertures and aperture blocks  --------------------- */
 	// and aperture macros - TODO!!!!!
 	aperturesList = list.New()
-	apertureBlocks = make(map[string]*gerbparser.BlockAperture)
+	apertureBlocks = make(map[string]*blockapertures.BlockAperture)
 	apertureBlockOpened := make([]string, 0)
 
 	gerberStrings2 := stor.NewStorage()
@@ -146,26 +157,26 @@ func main() {
 			break
 		}
 		// aperture blocks processing
-		if strings.Compare(gerberString, gerbparser.GerberApertureBlockDefEnd) == 0 {
+		if strings.Compare(gerberString, GerberApertureBlockDefEnd) == 0 {
 			last := len(apertureBlockOpened) - 1
 			if last < 0 {
 				panic("No more open aperture blocks left!")
 			}
-			aperture := new(gerbparser.Aperture)
+			aperture := new(apertures.Aperture)
 			aperture.Code = apertureBlocks[apertureBlockOpened[last]].Code
-			aperture.Type = gerbparser.AptypeBlock
+			aperture.Type = AptypeBlock
 			aperture.BlockPtr = apertureBlocks[apertureBlockOpened[last]]
-			aperture.BlockPtr.StepsPtr = make([]*gerbparser.State, len(aperture.BlockPtr.BodyStrings)+1)
-			aperture.BlockPtr.StepsPtr[0] = gerbparser.NewState()
+			aperture.BlockPtr.StepsPtr = make([]*gerberstates.State, len(aperture.BlockPtr.BodyStrings)+1)
+			aperture.BlockPtr.StepsPtr[0] = gerberstates.NewState()
 			apertureBlockOpened = apertureBlockOpened[:last]
 			aperturesList.PushBack(aperture) // store correct aperture
 			continue
 		}
 		// new block is met
-		if strings.HasPrefix(gerberString, gerbparser.GerberApertureBlockDef) &&
+		if strings.HasPrefix(gerberString, GerberApertureBlockDef) &&
 			strings.HasSuffix(gerberString, "*%") {
 			// aperture block found
-			apBlk := new(gerbparser.BlockAperture)
+			apBlk := new(blockapertures.BlockAperture)
 			apBlk.StartStringNum = i
 			apBlk.Code, err = strconv.Atoi(gerberString[4 : len(gerberString)-2])
 			apertureBlocks[gerberString] = apBlk
@@ -181,10 +192,10 @@ func main() {
 		/*------------------ aperture blocks processing END ----------------- */
 
 		/*------------------ standard apertures processing  ------------------*/
-		if strings.HasPrefix(gerberString, gerbparser.GerberApertureDef) &&
+		if strings.HasPrefix(gerberString, GerberApertureDef) &&
 			strings.HasSuffix(gerberString, "*%") {
 			// possible aperture definition found
-			aperture := new(gerbparser.Aperture)
+			aperture := new(apertures.Aperture)
 			apErr := aperture.Init(gerberString[4:len(gerberString)-2], fSpec)
 			checkError(apErr, 500)
 			aperturesList.PushBack(aperture) // store correct aperture
@@ -202,7 +213,7 @@ func main() {
 	saveIntermediate(gerberStrings, "before_steps.txt")
 
 	// Main sequence of steps
-	arrayOfSteps = make([]*gerbparser.State, gerberStrings.Len()+1)
+	arrayOfSteps = make([]*gerberstates.State, gerberStrings.Len()+1)
 	// Global list of Regions
 	regionsList = list.New()
 
@@ -231,16 +242,16 @@ func main() {
 	//	var touch bool = false
 	for {
 		touch := false
-		arrayOfSteps2 := make([]*gerbparser.State, 0)
+		arrayOfSteps2 := make([]*gerberstates.State, 0)
 		for k := 1; k < len(arrayOfSteps); k++ {
 			if arrayOfSteps[k].CurrentAp != nil &&
-				arrayOfSteps[k].CurrentAp.Type == gerbparser.AptypeBlock &&
-				arrayOfSteps[k].Action == gerbparser.OpcodeD03_FLASH {
+				arrayOfSteps[k].CurrentAp.Type == AptypeBlock &&
+				arrayOfSteps[k].Action == OpcodeD03_FLASH {
 				for i, bs := range arrayOfSteps[k].CurrentAp.BlockPtr.StepsPtr {
 					if i == 0 { // skip root element
 						continue
 					}
-					newStep := new(gerbparser.State)
+					newStep := new(gerberstates.State)
 					newStep.CopyOfWithOffset(bs, arrayOfSteps[k].Coord.GetX(), arrayOfSteps[k].Coord.GetY())
 					if i == 1 {
 						newStep.PrevCoord = arrayOfSteps[k].PrevCoord
@@ -327,7 +338,7 @@ func main() {
 	plotterInstance = plotter.NewPlotter()
 	plotterInstance.TakePen(1)
 	plotterInstance.SetOutFileName(viperConfig.GetString(configurator.CfgPlotterOutFile))
-	renderContext := render.NewRender(plotterInstance, viperConfig, minX, minY, maxX, maxY)
+	renderContext = render.NewRender(plotterInstance, viperConfig, minX, minY, maxX, maxY)
 	fmt.Printf("Min. X, Y found: (%f,%f)\n", minX, minY)
 	fmt.Printf("Max. X, Y found: (%f,%f)\n", maxX, maxY)
 	//renderContext.SetMinXY(minX, minY)
@@ -340,10 +351,10 @@ func main() {
 
 	k := 0
 	for k < len(arrayOfSteps) {
-		if arrayOfSteps[k].Action == gerbparser.OpcodeStop {
+		if arrayOfSteps[k].Action == OpcodeStop {
 			break
 		}
-		renderContext.ProcessStep(arrayOfSteps[k])
+		ProcessStep(arrayOfSteps[k])
 		k++
 	}
 
@@ -408,14 +419,14 @@ func searchMO(storage *stor.Storage) (string, error) {
 	s := storage.String()
 	for len(s) > 0 {
 
-		if strings.HasPrefix(s, gerbparser.GerberMOIN) || strings.HasPrefix(s, gerbparser.GerberMOMM) {
+		if strings.HasPrefix(s, GerberMOIN) || strings.HasPrefix(s, GerberMOMM) {
 			return s, nil
 		}
 		if strings.Compare(s, "G70*") == 0 {
-			return gerbparser.GerberMOIN, nil
+			return GerberMOIN, nil
 		}
 		if strings.Compare(s, "G71*") == 0 {
-			return gerbparser.GerberMOMM, nil
+			return GerberMOMM, nil
 		}
 		s = storage.String()
 	}
@@ -435,7 +446,7 @@ func searchFS(storage *stor.Storage) (string, error) {
 		if strings.HasPrefix(s, "%FSLI") {
 			return s, errors.New("incremental coordinates ain't supported") // + 09-Jun-2018
 		}
-		if strings.HasPrefix(s, gerbparser.GerberFormatSpec) {
+		if strings.HasPrefix(s, GerberFormatSpec) {
 			return s, nil
 		}
 		s = storage.String()
@@ -553,12 +564,6 @@ func squeezeString(inString string) string {
 	return inString
 }
 
-func checkError(err error, exitCode int) {
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(exitCode)
-	}
-}
 
 // this function returns application info
 func returnAppInfo(verbLevel int) string {
@@ -588,20 +593,20 @@ func returnAppInfo(verbLevel int) string {
 // NumberOfSteps - number of the created steps started from 1
 
 func createStepSequence(src *[]string,
-	resSteps *[]*gerbparser.State,
+	resSteps *[]*gerberstates.State,
 	apertl *list.List,
 	regl *list.List,
-	fSpec *gerbparser.FormatSpec) (NumberOfSteps int) {
+	fSpec *FormatSpec) (NumberOfSteps int) {
 
 	stepNumber := 1 // step number
 	stepCompleted := true
 	// create the root step with default properties
-	(*resSteps)[0] = gerbparser.NewState()
+	(*resSteps)[0] = gerberstates.NewState()
 	// process string by string
-	var step *gerbparser.State
+	var step *gerberstates.State
 	for i, s := range *src {
 		if stepCompleted == true {
-			step = new(gerbparser.State)
+			step = new(gerberstates.State)
 			*step = *(*resSteps)[stepNumber-1]
 			step.Coord = nil
 			step.PrevCoord = nil
@@ -609,19 +614,19 @@ func createStepSequence(src *[]string,
 		//		fmt.Printf(">>>>>%v  %v\n", stepNumber, arrayOfSteps[stepNumber])
 		createStepResult := step.CreateStep(&s, (*resSteps)[stepNumber-1], apertl, regl, i, fSpec)
 		switch createStepResult {
-		case gerbparser.SCResultNextString:
+		case gerberstates.SCResultNextString:
 			fallthrough
-		case gerbparser.SCResultSkipString:
+		case gerberstates.SCResultSkipString:
 			stepCompleted = false
 			continue
-		case gerbparser.SCResultStepCompleted:
+		case gerberstates.SCResultStepCompleted:
 			step.PrevCoord = (*resSteps)[stepNumber-1].Coord
 			step.StepNumber = stepNumber
 			(*resSteps)[stepNumber] = step
 			stepNumber++
 			stepCompleted = true
 			continue
-		case gerbparser.SCResultStop:
+		case gerberstates.SCResultStop:
 			step.StepNumber = stepNumber
 			(*resSteps)[stepNumber] = step
 			step.Coord = (*resSteps)[stepNumber-1].Coord
@@ -683,14 +688,14 @@ func timeInfo(prev time.Time) {
 	fmt.Print(out)
 }
 
-func unwindSRBlock(steps *[]*gerbparser.State, k int) (*[]*gerbparser.State, int) {
+func unwindSRBlock(steps *[]*gerberstates.State, k int) (*[]*gerberstates.State, int) {
 	firstSRStep := (*steps)[k]
 	// once came into, no return until sr block stays not fully processed
 	kStop := k + firstSRStep.SRBlock.NSteps() // stop value
 	numXSteps := firstSRStep.SRBlock.NumX()
 	numYSteps := firstSRStep.SRBlock.NumY()
 	numberOfStepsInSRBlock := firstSRStep.SRBlock.NSteps() * numXSteps * numYSteps
-	SRBlockSteps := make([]*gerbparser.State, numberOfStepsInSRBlock)
+	SRBlockSteps := make([]*gerberstates.State, numberOfStepsInSRBlock)
 	stepCounter := 0
 	var addX, addY float64
 	for j := 0; j < numYSteps; j++ {
@@ -698,9 +703,9 @@ func unwindSRBlock(steps *[]*gerbparser.State, k int) (*[]*gerbparser.State, int
 		for i := 0; i < numXSteps; i++ {
 			addX = float64(i) * firstSRStep.SRBlock.DX()
 			for kk := k; kk < kStop; kk++ {
-				SRBlockSteps[stepCounter] = gerbparser.NewState()
+				SRBlockSteps[stepCounter] = gerberstates.NewState()
 				if kk == k {
-					SRBlockSteps[stepCounter].PrevCoord = gerbparser.NewXY()
+					SRBlockSteps[stepCounter].PrevCoord = NewXY()
 				} else {
 					SRBlockSteps[stepCounter].PrevCoord = SRBlockSteps[stepCounter-1].Coord
 				}
@@ -711,5 +716,184 @@ func unwindSRBlock(steps *[]*gerbparser.State, k int) (*[]*gerbparser.State, int
 	}
 	return &SRBlockSteps, kStop
 }
+
+/*
+**************************** step processor *******************************
+ */
+func ProcessStep(stepData *gerberstates.State) {
+
+	//	stepData.Print()
+
+	var Xp int
+	var Yp int
+	Xc := transformCoord(stepData.Coord.GetX()-renderContext.MinX, renderContext.XRes)
+	Yc := transformCoord(stepData.Coord.GetY()-renderContext.MinY, renderContext.YRes)
+	if stepData.PrevCoord == nil {
+		Xp = transformCoord(0-renderContext.MinX, renderContext.XRes)
+		Yp = transformCoord(0-renderContext.MinY, renderContext.YRes)
+	} else {
+		Xp = transformCoord(stepData.PrevCoord.GetX()-renderContext.MinX, renderContext.XRes)
+		Yp = transformCoord(stepData.PrevCoord.GetY()-renderContext.MinY, renderContext.YRes)
+	}
+
+	if stepData.Region != nil {
+		// process region
+		if renderContext.PolygonPtr == nil {
+			renderContext.PolygonPtr = render.NewPolygon()
+		}
+		if renderContext.AddStepToPolygon(stepData) == stepData.Region.GetNumXY() {
+			// we can process region
+			renderContext.RenderPolygon()
+			renderContext.PolygonPtr = nil
+		}
+	} else {
+		var stepColor color.RGBA
+		switch stepData.Action {
+		case OpcodeD01_DRAW: // draw
+			if stepData.Polarity == PolTypeDark {
+				stepColor = renderContext.LineColor
+			} else {
+				stepColor = renderContext.ClearColor
+			}
+
+			var apertureSize int
+			if abs(Xc-Xp) < (4*renderContext.PointSizeI) && abs(Yc-Yp) < (4*renderContext.PointSizeI) {
+				stepData.IpMode = IPModeLinear
+			}
+			if stepData.IpMode == IPModeLinear {
+				// linear interpolation
+				if renderContext.DrawOnlyRegionsMode != true {
+					if stepData.CurrentAp.Type == AptypeCircle {
+						apertureSize = transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
+						renderContext.DrawByCircleAperture(Xp, Yp, Xc, Yc, apertureSize, stepColor)
+					} else if stepData.CurrentAp.Type == AptypeRectangle {
+						// draw with rectangle aperture
+						w := transformCoord(stepData.CurrentAp.XSize, renderContext.XRes)
+						h := transformCoord(stepData.CurrentAp.YSize, renderContext.YRes)
+						renderContext.DrawByRectangleAperture(Xp, Yp, Xc, Yc, w, h, stepColor)
+					} else {
+						fmt.Println("Error. Only solid drawCircle and solid rectangle may be used to draw.")
+						break
+					}
+				}
+			} else {
+				// non-linear interpolation
+				if renderContext.DrawOnlyRegionsMode != true {
+					if stepData.CurrentAp.Type == AptypeCircle {
+						apertureSize = transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
+						var (
+							fXp, fYp float64
+						)
+						if stepData.PrevCoord == nil {
+							fXp = transformFloatCoord(0-renderContext.MinX, renderContext.XRes)
+							fYp = transformFloatCoord(0-renderContext.MinY, renderContext.YRes)
+						} else {
+							fXp = transformFloatCoord(stepData.PrevCoord.GetX()-renderContext.MinX, renderContext.XRes)
+							fYp = transformFloatCoord(stepData.PrevCoord.GetY()-renderContext.MinY, renderContext.YRes)
+						}
+
+						fXc := transformFloatCoord(stepData.Coord.GetX()-renderContext.MinX, renderContext.XRes)
+						fYc := transformFloatCoord(stepData.Coord.GetY()-renderContext.MinY, renderContext.YRes)
+						fI := transformFloatCoord(stepData.Coord.GetI(), renderContext.XRes)
+						fJ := transformFloatCoord(stepData.Coord.GetJ(), renderContext.YRes)
+
+						// Arcs require floats!
+						err := renderContext.DrawArc(fXp,
+							fYp,
+							fXc,
+							fYc,
+							fI,
+							fJ,
+							apertureSize,
+							stepData.IpMode,
+							stepData.QMode,
+							// TODO
+							renderContext.RegionColor)
+						if err != nil {
+							stepData.Print()
+							checkError(err, 998)
+						}
+						renderContext.DrawDonut(Xp, Yp, apertureSize, 0, stepColor)
+						renderContext.DrawDonut(Xc, Yc, apertureSize, 0, stepColor)
+					} else if stepData.CurrentAp.Type == AptypeRectangle {
+						fmt.Println("Arc drawing by rectangle aperture is not supported now.")
+					} else {
+						fmt.Println("Error. Only solid drawCircle and solid rectangle may be used to draw.")
+						break
+					}
+				}
+			}
+			//
+		case OpcodeD02_MOVE: // move
+			renderContext.MovePen(Xp, Yp, Xc, Yc, renderContext.MovePenColor)
+			//
+		case OpcodeD03_FLASH: // flash
+			if renderContext.DrawOnlyRegionsMode != true {
+				renderContext.MovePen(Xp, Yp, Xc, Yc, renderContext.MovePenColor)
+				if stepData.Polarity == PolTypeDark {
+					stepColor = renderContext.ApColor
+				} else {
+					stepColor = renderContext.ClearColor
+				}
+				w := transformCoord(stepData.CurrentAp.XSize, renderContext.XRes)
+				h := transformCoord(stepData.CurrentAp.YSize, renderContext.YRes)
+				d := transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
+				hd := transformCoord(stepData.CurrentAp.HoleDiameter, renderContext.XRes)
+
+				switch stepData.CurrentAp.Type {
+				case AptypeRectangle:
+					renderContext.DrawFilledRectangle(Xc, Yc, w, h, stepColor)
+				case AptypeCircle:
+					renderContext.DrawDonut(Xc, Yc, d, hd, stepColor)
+				case AptypeObround:
+					if w == h {
+						renderContext.DrawDonut(Xc, Yc, w, hd, stepColor)
+					} else {
+						renderContext.DrawObRound(Xc, Yc, w, h, 0, renderContext.ObRoundColor)
+					}
+				case AptypePoly:
+					renderContext.DrawDonut(Xc, Yc, d, hd, renderContext.MissedColor)
+					fmt.Println("Polygonal apertures ain't supported.")
+				default:
+					checkError(errors.New("bad aperture type found"), 501)
+					break
+				}
+			}
+		default:
+			checkError(errors.New("(renderContext *Render) ProcessStep(stepData *gerbparser.State) internal error. Bad opcode"), 666)
+			fmt.Println("")
+			break
+		}
+	}
+}
+
+/* some draw helpers */
+
+func transformCoord(inc float64, res float64) int {
+	return int(inc / res)
+}
+
+func transformFloatCoord(inc float64, res float64) float64 {
+	return inc / res
+}
+
+//
+func abs(x int) int {
+	switch {
+	case x >= 0:
+		return x
+	case x >= MinInt:
+		return -x
+	}
+	panic("math/int.Abs: invalid argument")
+}
+
+func checkError(err error, exitCode int) {
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(exitCode)
+	}
+}
+
 
 /* ########################################## EOF #########################################################*/

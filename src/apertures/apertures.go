@@ -1,51 +1,20 @@
 //
 // functions related to parsing gerber files
 // Apertures support
-package gerbparser
+package apertures
 
 import (
+	"blockapertures"
 	"errors"
-	"fmt"
+	. "gerberbasetypes"
 	"strconv"
 	"strings"
+	. "xy"
+	//	"amprocessor"
 )
 
-// Apertures
-const GerberApertureDef = "%ADD"
-const GerberApertureMacroDef = "%AM"
-const GerberApertureBlockDef = "%AB"
-const GerberApertureBlockDefEnd = "%AB*%"
 
-type GerberApType int
 
-const (
-	AptypeCircle GerberApType = iota + 1
-	AptypeRectangle
-	AptypeObround
-	AptypePoly
-	AptypeMacro
-	AptypeBlock
-)
-
-func (ga GerberApType) String() string {
-	switch ga {
-	case AptypeCircle:
-		return "circle aperture"
-	case AptypeRectangle:
-		return "rectangle aperture"
-	case AptypeObround:
-		return "obround (box) aperture"
-	case AptypePoly:
-		return "polygon aperture"
-	case AptypeMacro:
-		return "macro aperture"
-	case AptypeBlock:
-		return "block aperture"
-	default:
-	}
-	return "Unknown aperture type"
-
-}
 
 type Aperture struct {
 	Code         int
@@ -57,30 +26,10 @@ type Aperture struct {
 	HoleDiameter float64
 	Vertices     int
 	RotAngle     float64
-	BlockPtr     *BlockAperture
-	MacroPtr     *ApertureMacro
+	BlockPtr     *blockapertures.BlockAperture
+//	MacroPtr     *amprocessor.ApertureMacro
 }
 
-type BlockAperture struct {
-	StartStringNum int
-	Code           int
-	BodyStrings    []string
-	StepsPtr       []*State
-}
-
-//Print info
-func (ba *BlockAperture) Print() {
-	fmt.Println("\n***** Block aperture *****")
-	fmt.Println("\tBlock aperture code:", ba.Code)
-	fmt.Println("\tSource strings:")
-	for b := range ba.BodyStrings {
-		fmt.Println("\t\t", b, "  ", ba.BodyStrings[b])
-	}
-	fmt.Println("\tResulting steps:")
-	for b := range ba.StepsPtr {
-		ba.StepsPtr[b].Print()
-	}
-}
 
 func (apert *Aperture) GetCode() int {
 	return apert.Code

@@ -5,10 +5,10 @@ package plotter
 
 import (
 	"fmt"
-	"gerbparser"
 	"os"
 	"strconv"
 	"strings"
+	. "gerberbasetypes"
 )
 
 /*
@@ -138,14 +138,14 @@ func (plotter *Plotter) Circle(xc, yc, r int) string {
 	return retVal
 }
 
-func (plotter *Plotter) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm gerbparser.IPmode) string {
+func (plotter *Plotter) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm IPmode) string {
 	var retVal string
 	if (plotter.currentPosX != x0) || (plotter.currentPosY != y0) {
 		fmt.Println("Arc. Position discrepance detected!")
 		retVal = plotter.moveTo(x0, y0)
 		plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
 	}
-	if ipm == gerbparser.IPModeCwC {
+	if ipm == IPModeCwC {
 		radius = -radius
 	} else {
 		radius = radius

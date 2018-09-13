@@ -1,101 +1,22 @@
 /*
 ################################## State machine ######################################
 */
-package gerbparser
+package gerberstates
 
 import (
+	"apertures"
 	"container/list"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	."xy"
+	."gerberbasetypes"
+	"srblocks"
+	"regions"
+//	"apertures"
 )
-
-type polType int
-
-const (
-	PolTypeDark polType = iota + 1
-	PolTypeClear
-)
-
-func (p polType) String() string {
-	switch p {
-	case PolTypeDark:
-		return "Polarity: dark"
-	case PolTypeClear:
-		return "Polarity: clear"
-	default:
-
-	}
-	return "Unknown polarity"
-}
-
-type ActType int
-
-const (
-	OpcodeD01_DRAW ActType = iota + 1
-	OpcodeD02_MOVE
-	OpcodeD03_FLASH
-	OpcodeStop
-)
-
-func (act ActType) String() string {
-	switch act {
-	case OpcodeD01_DRAW:
-		return "Opcode D01 (DRAW)"
-	case OpcodeD02_MOVE:
-		return "Opcode D02 (MOVE)"
-	case OpcodeD03_FLASH:
-		return "Opcode D03 (FLASH)"
-	case OpcodeStop:
-		return "Opcode Stop"
-	default:
-
-	}
-	return "Unknown OpCode"
-}
-
-type QuadMode int
-
-const (
-	QuadModeSingle QuadMode = iota + 1
-	QuadModeMulti
-)
-
-func (q QuadMode) String() string {
-	switch q {
-	case QuadModeSingle:
-		return "QuadMode: Single"
-	case QuadModeMulti:
-		return "QuadMode: Multi"
-	default:
-
-	}
-	return "Unknown QuadMode"
-}
-
-type IPmode int
-
-const (
-	IPModeLinear IPmode = iota + 1
-	IPModeCwC
-	IPModeCCwC
-)
-
-func (ipm IPmode) String() string {
-	switch ipm {
-	case IPModeLinear:
-		return "Linear interpolation"
-	case IPModeCwC:
-		return "Clockwise interpolation"
-	case IPModeCCwC:
-		return "Counter-clockwise interpolation"
-	default:
-
-	}
-	return "Unknown interpolation"
-}
 
 /*
 	The State object represents the state of the state machine before processing
@@ -104,15 +25,15 @@ func (ipm IPmode) String() string {
 type State struct {
 	// each instance of the State represents an action which must be done
 	StepNumber  int     // step number
-	Polarity    polType // %LPD*% or %LPC*%
+	Polarity    PolType // %LPD*% or %LPC*%
 	QMode       QuadMode
-	CurrentAp   *Aperture // aperture code
+	CurrentAp   *apertures.Aperture // aperture code
 	IpMode      IPmode    // interpolation mode
 	PrevCoord   *XY
 	Coord       *XY
 	Action      ActType
-	Region      *Region
-	SRBlock     *SRBlock
+	Region      *regions.Region
+	SRBlock     *srblocks.SRBlock
 	OriginForAB *XY // origin for aperture block insertion
 }
 
@@ -224,7 +145,7 @@ func (step *State) CreateStep(
 	}
 	if strings.Compare("G37*", *inString) == 0 {
 		// G37 command is found
-		regionOpenedState, err := step.Region.isRegionOpened()
+		regionOpenedState, err := step.Region.IsRegionOpened()
 		checkError(err, 401)
 		if regionOpenedState == true { // creg is opened
 			err = step.Region.Close(i)
@@ -235,7 +156,7 @@ func (step *State) CreateStep(
 	}
 	//
 	if strings.Compare("G36*", *inString) == 0 {
-		creg := newRegion(i)
+		creg := regions.NewRegion(i)
 		regionsList.PushBack(creg)
 		step.Region = creg
 		// add coordinates as usual, close creg at G37 command
@@ -263,14 +184,14 @@ func (step *State) CreateStep(
 			//				fmt.Println("string:", i, "\tcoordinates(X,Y,I,J):", xy.GetX(), xy.GetY(), xy.GetJ(), xy.GetJ())
 			// check if the xy belongs to a region
 			if step.Region != nil {
-				rs, _ := step.Region.isRegionOpened()
+				rs, _ := step.Region.IsRegionOpened()
 				if rs == true {
 					// add coordinate entry into creg
 					if step.Region.GetNumXY() == 0 {
 						// no coordinate entries in the creg
-						step.Region.setStartXY(xy)
+						step.Region.SetStartXY(xy)
 					} else {
-						step.Region.incNumXY()
+						step.Region.IncNumXY()
 					}
 				}
 			}
@@ -280,7 +201,7 @@ func (step *State) CreateStep(
 			os.Exit(310)
 		}
 		if step.SRBlock != nil {
-			step.SRBlock.incNSteps()
+			step.SRBlock.IncNSteps()
 		}
 		return SCResultStepCompleted
 	}
@@ -293,8 +214,8 @@ func (step *State) CreateStep(
 		tc, err := strconv.Atoi(s[1 : len(s)-1])
 		checkError(err, 501)
 		for k := apertList.Front(); k != nil; k = k.Next() {
-			if k.Value.(*Aperture).GetCode() == tc {
-				step.CurrentAp = k.Value.(*Aperture)
+			if k.Value.(*apertures.Aperture).GetCode() == tc {
+				step.CurrentAp = k.Value.(*apertures.Aperture)
 				break
 			}
 		}
@@ -306,7 +227,7 @@ func (step *State) CreateStep(
 
 	if strings.HasPrefix(*inString, "%SRX") {
 		fmt.Println("Step and repeat block found at line", i)
-		step.SRBlock = new(SRBlock)
+		step.SRBlock = new(srblocks.SRBlock)
 		s := *inString
 		srerr := step.SRBlock.Init(s[3:len(s)-2], fSpec)
 		checkError(srerr, 550)
@@ -329,4 +250,11 @@ func (step *State) CreateStep(
 		return SCResultStop
 	}
 	return SCResultSkipString
+}
+
+func checkError(err error, exitCode int) {
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(exitCode)
+	}
 }
