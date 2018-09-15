@@ -1,19 +1,23 @@
 //Aperture Macros support
-package amprocessor
+package render
 
 import (
 	"errors"
 	"fmt"
-	"render"
+	. "gerberbasetypes"
 	"strconv"
 	"strings"
+	stor "strings_storage"
 )
+
+// aperture macro dictionary
+var AMacroDict []*ApertureMacro
 
 type AMPrimitive interface {
 	// takes the state with the FLASH opcode, where aperture code is macro
 	// returns the sequence of steps which allow to draw this aperture
 	//	Render(int, int, color.RGBA)
-	Render(int, int /* *render.Render*/)
+	Render(int, int, *Render)
 
 	// returns a string representation of thr primitive
 	String() string
@@ -90,17 +94,10 @@ type AMPrimitiveComment struct {
 func (amp AMPrimitiveComment) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
-	//subStr1 := "\t\tmodifier("
-	//subStr2 := ")="
-	//subStr3 := "\n"
-	//for i, s := range amp.AMModifiers {
-	//	SubStr := subStr1 + strconv.Itoa(i) + subStr2 + s + subStr3
-	//	retVal = retVal + SubStr
-	//}
 	return retVal
 }
 
-func (amp AMPrimitiveComment) Render(x0, y0 int /*, context *render.Render*/) {
+func (amp AMPrimitiveComment) Render(x0, y0 int, context *Render) {
 	return
 }
 
@@ -117,7 +114,7 @@ func (amp AMPrimitiveCircle) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveCircle) Render(x0, y0 int /*, context *render.Render*/) {
+func (amp AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
 
 	return
 }
@@ -136,7 +133,7 @@ func (amp AMPrimitiveVectLine) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveVectLine) Render(x0, y0 int /*, context *render.Render*/) {
+func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 	return
 }
 
@@ -154,7 +151,7 @@ func (amp AMPrimitiveCenterLine) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveCenterLine) Render(x0, y0 int /*, context *render.Render*/) {
+func (amp AMPrimitiveCenterLine) Render(x0, y0 int, context *Render) {
 	return
 }
 
@@ -178,7 +175,7 @@ func (amp AMPrimitiveOutLine) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveOutLine) Render(x0, y0 int /*, context *render.Render*/) {
+func (amp AMPrimitiveOutLine) Render(x0, y0 int, context *Render) {
 	return
 }
 
@@ -196,7 +193,7 @@ func (amp AMPrimitivePolygon) String() string {
 	return retVal
 }
 
-func (amp AMPrimitivePolygon) Render(x0, y0 int /*, context *render.Render*/) {
+func (amp AMPrimitivePolygon) Render(x0, y0 int, context *Render) {
 	return
 }
 
@@ -215,7 +212,7 @@ func (amp AMPrimitiveMoire) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveMoire) Render(x0, y0 int /*, context *render.Render*/) {
+func (amp AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
 	return
 }
 
@@ -233,7 +230,7 @@ func (amp AMPrimitiveThermal) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveThermal) Render(x0, y0 int /*, context *render.Render*/) {
+func (amp AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
 	return
 }
 
@@ -277,11 +274,11 @@ func NewApertureMacro(src string) (*ApertureMacro, error) {
 	if strings.HasPrefix(splittedStr[0], "%AM") == true {
 		retVal.Name = splittedStr[0][3:]
 	} else {
-		return retVal, errors.New("Aperture macro name not found")
+		return retVal, errors.New("aperture macro name not found")
 	}
 
 	if strings.HasPrefix(splittedStr[len(splittedStr)-1], "%") == false {
-		return retVal, errors.New("Aperture macro trailing % not found")
+		return retVal, errors.New("aperture macro trailing % not found")
 	}
 
 	for _, s := range splittedStr[1:] {
@@ -294,7 +291,7 @@ func NewApertureMacro(src string) (*ApertureMacro, error) {
 		if strings.HasPrefix(s, "$") {
 			eqSignPos := strings.Index(s, "=")
 			if eqSignPos == -1 {
-				return retVal, errors.New("Problem with variable: " + s)
+				return retVal, errors.New("problem with variable: " + s)
 			}
 			prIndex := len(retVal.Primitives)
 			retVal.Variables = append(retVal.Variables, AMVariable{s[1:eqSignPos], s[eqSignPos+1:], prIndex})
@@ -305,13 +302,17 @@ func NewApertureMacro(src string) (*ApertureMacro, error) {
 		if len(s) > 2 {
 			commaPos := strings.Index(s, ",")
 			if commaPos > 2 {
-				return retVal, errors.New("Bad aperture macro primitive: " + s)
+				return retVal, errors.New("bad aperture macro primitive: " + s)
 			}
 			primTypeI, err := strconv.Atoi(s[:commaPos])
 			if err != nil {
 				return retVal, err
 			}
 			var primType AMPrimitiveType
+			// an odd primitive type fix:
+			if primTypeI == 2 {
+				primTypeI = 20
+			}
 			primType = AMPrimitiveType(primTypeI)
 			modifiersArr := strings.Split(s[commaPos+1:], ",")
 			modifInterfaceArr := make([]interface{}, len(modifiersArr))
@@ -324,10 +325,10 @@ func NewApertureMacro(src string) (*ApertureMacro, error) {
 	return retVal, nil
 }
 
-func (am ApertureMacro) Render(x0, y0 int, context *render.Render) {
+func (am ApertureMacro) Render(x0, y0 int, context *Render) {
 
 	for i := range am.Primitives {
-		am.Primitives[i].Render(x0, y0 /*, context*/)
+		am.Primitives[i].Render(x0, y0, context)
 	}
 
 	return
@@ -340,7 +341,7 @@ func (am ApertureMacro) Render(x0, y0 int, context *render.Render) {
 func ArrayInfo(inArray []interface{}, itemNames []string) string {
 
 	// each step constructs the sub-string
-	// \t%itemname% = %itemValue%\n
+	// \t%itemName% = %itemValue%\n
 	retVal := ""
 
 	var limIn int = len(inArray)
@@ -372,4 +373,194 @@ func ArrayInfo(inArray []interface{}, itemNames []string) string {
 		i++
 	}
 	return retVal
+}
+
+/* Aperture macro definitions extractor */
+func ExtractAMDefinitions(inStrings *stor.Storage) ([]*ApertureMacro, *stor.Storage) {
+	aMacroDict := make([]*ApertureMacro, 0)
+	retStorage := stor.NewStorage()
+	apMacroString := ""
+	inStrings.ResetPos()
+	for {
+		gerberString := inStrings.String()
+		if len(gerberString) == 0 {
+			break
+		}
+		/*------------------- aperture macro processing start ---------------- */
+		if strings.HasPrefix(gerberString, GerberApertureMacroDef) &&
+			strings.HasSuffix(gerberString, "%") {
+			apMacroString = gerberString
+			var err error
+			apMacroPtr, err := NewApertureMacro(apMacroString)
+			if err != nil {
+				checkError(err, 587)
+			}
+			aMacroDict = append(aMacroDict, apMacroPtr) // store correct aperture
+			apMacroString = ""
+			continue
+		}
+		// all unprocessed above goes here
+		retStorage.Accept(gerberString)
+	}
+	return aMacroDict, retStorage
+}
+
+// Instantiates an aperture using definition and parameters
+//
+// %ADD11CIRCLE,.5*%
+//     ^---------^
+//func NewApertureInstance(code int, name string, def string, scale float64) *Aperture {
+func NewApertureInstance(gerberString string, scale float64) *Aperture {
+
+	apString := gerberString[4 : len(gerberString)-2]
+	var i int
+	for i = 0; i < len(apString); i++ {
+		if apString[i] < '0' || apString[i] > '9' {
+			break
+		}
+	}
+	commaPos := strings.Index(apString[i:], ",")
+	if commaPos == -1 {
+		commaPos = len(apString[i:])
+	}
+	code, _ := strconv.Atoi(apString[:i])
+	name := apString[i : commaPos+i]
+	def := apString[commaPos+i:]
+	retVal := new(Aperture)
+	if len(name) == 0 {
+		panic("bad aperture " + strconv.Itoa(code) + " name")
+	}
+	if len(name) == 1 && (name[0] == 'C' || name[0] == 'R' || name[0] == 'O' || name[0] == 'P') {
+		// it's ordinary aperture
+		err := retVal.Init2(code, name, def, scale)
+		if err != nil {
+			panic(err)
+		}
+
+	} else { // it's macro aperture
+		retVal.SourceString = def
+		retVal.Type = AptypeMacro
+		retVal.Code = code
+		// find in macro definitions dictionary for the name
+
+		var instance *ApertureMacro
+		for i := range AMacroDict {
+			if strings.Compare(AMacroDict[i].Name, name) == 0 {
+				instance = new(ApertureMacro)
+				*instance = *AMacroDict[i]
+				break
+			}
+		}
+		if instance == nil {
+			panic("unable to instantiate aperture macro " + strconv.Itoa(code) + name)
+		}
+
+		retVal.MacroPtr = instance
+	}
+	return retVal
+}
+
+// %ADD10C,0.0650*%
+//     ^--------^
+
+func (apert *Aperture) Init2(code int, name string, def string, scale float64) error {
+
+	var err error = nil
+	// for backward compatibility
+	apert.SourceString = strconv.Itoa(code) + name + def
+
+	apert.Code = code
+
+	var tmpVal float64
+	tmpSplitted := strings.Split(def[1:], "X")
+	for j := range tmpSplitted {
+		tmpSplitted[j] = strings.TrimSpace(tmpSplitted[j])
+	}
+	switch name[0] {
+	case 'C':
+		apert.Type = AptypeCircle
+		if len(tmpSplitted) == 1 || len(tmpSplitted) == 2 {
+			for i, s := range tmpSplitted {
+				tmpVal, err = strconv.ParseFloat(s, 64)
+				if err == nil {
+					switch i {
+					case 0:
+						apert.Diameter = float64(tmpVal)
+					case 1:
+						apert.HoleDiameter = float64(tmpVal)
+					}
+				}
+			}
+		} else {
+			err = errors.New("bad number of parameters for circle aperture")
+		}
+	case 'R':
+		apert.Type = AptypeRectangle
+		if len(tmpSplitted) == 2 || len(tmpSplitted) == 3 {
+			for i, s := range tmpSplitted {
+				tmpVal, err = strconv.ParseFloat(s, 64)
+				if err == nil {
+					switch i {
+					case 0:
+						apert.XSize = float64(tmpVal)
+					case 1:
+						apert.YSize = float64(tmpVal)
+					case 2:
+						apert.HoleDiameter = float64(tmpVal)
+					}
+				}
+			}
+		} else {
+			err = errors.New("bad number of parameters for rectangle aperture")
+		}
+	case 'O':
+		apert.Type = AptypeObround
+		if len(tmpSplitted) == 2 || len(tmpSplitted) == 3 {
+			for i, s := range tmpSplitted {
+				tmpVal, err = strconv.ParseFloat(s, 64)
+				if err == nil {
+					switch i {
+					case 0:
+						apert.XSize = float64(tmpVal)
+					case 1:
+						apert.YSize = float64(tmpVal)
+					case 2:
+						apert.HoleDiameter = float64(tmpVal)
+					}
+				}
+			}
+		} else {
+			err = errors.New("bad number of parameters for obround aperture")
+		}
+	case 'P':
+		apert.Type = AptypePoly
+		if len(tmpSplitted) >= 2 && len(tmpSplitted) < 5 {
+			for i, s := range tmpSplitted {
+				tmpVal, err = strconv.ParseFloat(s, 64)
+				if err == nil {
+					switch i {
+					case 0:
+						apert.Diameter = float64(tmpVal) // OuterDiameter
+					case 1:
+						apert.Vertices = int(tmpVal)
+					case 2:
+						apert.RotAngle = float64(tmpVal)
+					case 3:
+						apert.HoleDiameter = float64(tmpVal)
+					}
+				}
+			}
+		} else {
+			err = errors.New("bad number of parameters for polygon aperture")
+		}
+	default:
+		err = errors.New("bad aperture name " + name)
+	}
+
+	apert.HoleDiameter *= scale
+	apert.Diameter *= scale
+	apert.YSize *= scale
+	apert.XSize *= scale
+
+	return err
 }

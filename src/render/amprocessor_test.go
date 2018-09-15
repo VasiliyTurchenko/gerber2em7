@@ -1,4 +1,4 @@
-package amprocessor
+package render
 
 import (
 	"math/rand"

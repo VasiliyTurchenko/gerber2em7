@@ -4,7 +4,6 @@
 package gerber2em7
 
 import (
-	"bufio"
 	"configurator"
 	"container/list"
 	"errors"
@@ -12,25 +11,23 @@ import (
 	"fmt"
 	"github.com/spf13/viper"
 	"image/color"
-
 	"image/png"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
 	stor "strings_storage"
 	"time"
+	"unicode"
 )
 
 import (
-
 	. "gerberbasetypes"
 	"plotter"
 	"render"
 	. "xy"
 )
-
-
 
 // TODO get rid of it
 var verboseLevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
@@ -63,6 +60,10 @@ var (
 
 	//render context
 	renderContext *render.Render
+
+	// aperture macro dictionary
+	// see in the package render
+	//aMacroDict []*render.ApertureMacro
 )
 
 func Main() {
@@ -105,21 +106,15 @@ func Main() {
 
 	fSpec = new(FormatSpec)
 
-	inFile, err := os.Open(sourceFileName) // For read access.
-	defer inFile.Close()
-	checkError(err, -1) // read the file into the array of strings
-
-	scanner := bufio.NewScanner(inFile)
-	for scanner.Scan() {
-		var splittedString *[]string
-		rawString := strings.ToUpper(scanner.Text())
-		// split concatenated command strings AAAAAD01*BBBBBBD02*GNN*D03*etc
-		splittedString = splitString(rawString)
+	content, err := ioutil.ReadFile(sourceFileName)
+	if err != nil {
+		checkError(err, -1)
+	}
+	splittedString := TokenizeGerber(&content)
 		// feed the storage
 		for _, str := range *splittedString {
-			gerberStrings.Accept(squeezeString(str))
+			gerberStrings.Accept(squeezeString(strings.ToUpper(str)))
 		}
-	}
 	// save splitted strings to a file
 	saveIntermediate(gerberStrings, "splitted.txt")
 
@@ -137,17 +132,18 @@ func Main() {
 		fmt.Println(mo)
 		os.Exit(302)
 	}
-
+	printMemUsage("Memory usage before extracting apertures:")
+	/* ---------------------- extract aperture macro defs to the am dictionary ----------- */
+	render.AMacroDict, gerberStrings = render.ExtractAMDefinitions(gerberStrings)
+	for i := range render.AMacroDict {
+		fmt.Println(render.AMacroDict[i].String())
+	}
 	/* ---------------------- extract apertures and aperture blocks  --------------------- */
 	// and aperture macros - TODO!!!!!
+	gerberStrings2 := stor.NewStorage()
 	aperturesList = list.New()
 	apertureBlocks = make(map[string]*render.BlockAperture)
 	apertureBlockOpened := make([]string, 0)
-
-	gerberStrings2 := stor.NewStorage()
-
-	printMemUsage("Memory usage before extracting apertures:")
-
 	// Aperture processing loop
 	gerberStrings.ResetPos()
 	for {
@@ -158,17 +154,17 @@ func Main() {
 		}
 		// aperture blocks processing
 		if strings.Compare(gerberString, GerberApertureBlockDefEnd) == 0 {
-			last := len(apertureBlockOpened) - 1
-			if last < 0 {
+			lastOpenedAB := len(apertureBlockOpened) - 1
+			if lastOpenedAB < 0 {
 				panic("No more open aperture blocks left!")
 			}
 			aperture := new(render.Aperture)
-			aperture.Code = apertureBlocks[apertureBlockOpened[last]].Code
+			aperture.Code = apertureBlocks[apertureBlockOpened[lastOpenedAB]].Code
 			aperture.Type = AptypeBlock
-			aperture.BlockPtr = apertureBlocks[apertureBlockOpened[last]]
+			aperture.BlockPtr = apertureBlocks[apertureBlockOpened[lastOpenedAB]]
 			aperture.BlockPtr.StepsPtr = make([]*render.State, len(aperture.BlockPtr.BodyStrings)+1)
 			aperture.BlockPtr.StepsPtr[0] = render.NewState()
-			apertureBlockOpened = apertureBlockOpened[:last]
+			apertureBlockOpened = apertureBlockOpened[:lastOpenedAB]
 			aperturesList.PushBack(aperture) // store correct aperture
 			continue
 		}
@@ -194,15 +190,9 @@ func Main() {
 		/*------------------ standard apertures processing  ------------------*/
 		if strings.HasPrefix(gerberString, GerberApertureDef) &&
 			strings.HasSuffix(gerberString, "*%") {
-			// possible aperture definition found
-			aperture := new(render.Aperture)
-			apErr := aperture.Init(gerberString[4:len(gerberString)-2], fSpec)
-			checkError(apErr, 500)
-			aperturesList.PushBack(aperture) // store correct aperture
+			aperturesList.PushBack(render.NewApertureInstance(gerberString, fSpec.ReadMU()))
 			continue
 		}
-		/*------------------- aperture macro processing ------------------------ */
-		// TODO
 		// all unprocessed above goes here
 		gerberStrings2.Accept(gerberString)
 	}
@@ -220,7 +210,7 @@ func Main() {
 	//  Aperture blocks must be converted to the steps w/o AB
 	//  S&R blocks and regions inside each instance of AB added to the global lists!
 	for apBlock := range apertureBlocks {
-		bsn := createStepSequence(&apertureBlocks[apBlock].BodyStrings, &apertureBlocks[apBlock].StepsPtr, aperturesList, regionsList, fSpec)
+		bsn := render.CreateStepSequence(&apertureBlocks[apBlock].BodyStrings, &apertureBlocks[apBlock].StepsPtr, aperturesList, regionsList, fSpec)
 		apertureBlocks[apBlock].StepsPtr = apertureBlocks[apBlock].StepsPtr[:bsn]
 	}
 
@@ -231,7 +221,7 @@ func Main() {
 	// TODO get rid of the patch!
 	gerberStringsArray := gerberStrings.ToArray()
 
-	numberOfSteps := createStepSequence(&gerberStringsArray, &arrayOfSteps, aperturesList, regionsList, fSpec)
+	numberOfSteps := render.CreateStepSequence(&gerberStringsArray, &arrayOfSteps, aperturesList, regionsList, fSpec)
 	arrayOfSteps = arrayOfSteps[:numberOfSteps]
 
 	/* ------------------ aperture blocks to steps ---------------------------*/
@@ -278,7 +268,7 @@ func Main() {
 	i := 0
 	for i < len(arrayOfSteps) {
 		if arrayOfSteps[i].SRBlock != nil {
-			insert, excludeLen := unwindSRBlock(&arrayOfSteps, i)
+			insert, excludeLen := render.UnwindSRBlock(&arrayOfSteps, i)
 			tailI := i + excludeLen
 			tail := arrayOfSteps[tailI:]
 			arrayOfSteps = arrayOfSteps[:i]
@@ -341,8 +331,6 @@ func Main() {
 	renderContext = render.NewRender(plotterInstance, viperConfig, minX, minY, maxX, maxY)
 	fmt.Printf("Min. X, Y found: (%f,%f)\n", minX, minY)
 	fmt.Printf("Max. X, Y found: (%f,%f)\n", maxX, maxY)
-	//renderContext.SetMinXY(minX, minY)
-	//renderContext.SetMaxXY(maxX, maxY)
 
 	printMemUsage("Memory usage after render context was initialized:")
 
@@ -492,31 +480,33 @@ func saveIntermediate(storage *stor.Storage, fileName string) {
 	}
 }
 
-func splitString(rawString string) *[]string {
-	// split concatenated command string AAAAAD01*BBBBBBD02*GNN*D03*etc
-	splittedStrings := make([]string, 0)
-	if (strings.HasPrefix(rawString, "%") && strings.HasSuffix(rawString, "%")) ||
-		strings.HasPrefix(rawString, "G04") {
-		// do not split
-		splittedStrings = append(splittedStrings, rawString)
-	} else {
-		for _, tmpSplitted := range strings.SplitAfter(rawString, "*") {
-			if len(tmpSplitted) > 0 {
-				for {
-					n := strings.IndexByte(tmpSplitted, 'G')
-					if n == -1 {
-						splittedStrings = append(splittedStrings, tmpSplitted)
-						break
-					} else {
-						splittedStrings = append(splittedStrings, tmpSplitted[n:n+3]+"*")
-						tmpSplitted = tmpSplitted[n+3:]
-					}
-				}
-			}
-		}
-	}
-	return &splittedStrings
-}
+//
+//func splitString(rawString string) *[]string {
+//	// split concatenated command string AAAAAD01*BBBBBBD02*GNN*D03*etc
+//	splittedStrings := make([]string, 0)
+//	if (strings.HasPrefix(rawString, "%") && strings.HasSuffix(rawString, "%")) ||
+//		strings.HasPrefix(rawString, "G04") {
+//		// do not split
+//		splittedStrings = append(splittedStrings, rawString)
+//	} else {
+//		for _, tmpSplitted := range strings.SplitAfter(rawString, "*") {
+//			if len(tmpSplitted) > 0 {
+//				for {
+//					n := strings.IndexByte(tmpSplitted, 'G')
+//					if n == -1 {
+//						splittedStrings = append(splittedStrings, tmpSplitted)
+//						break
+//					} else {
+//						splittedStrings = append(splittedStrings, tmpSplitted[n:n+3]+"*")
+//						tmpSplitted = tmpSplitted[n+3:]
+//					}
+//				}
+//			}
+//		}
+//	}
+//	return &splittedStrings
+//}
+
 func printSqueezedOut(str string) {
 	if viperConfig.GetBool(configurator.CfgCommonPrintGerberComments) == true {
 		fmt.Println(str)
@@ -583,63 +573,6 @@ func returnAppInfo(verbLevel int) string {
 	return retVal
 }
 
-// the function creates a full step sequence using src *[]string as source
-// src *[]string - pointer to the source string array
-// resSteps *[]*gerbparser.State - pointer to the resulting array of the steps, array size must be enough to hold all the staps
-// aperturesList *list.List - pointer to the global aperture list
-// regionsList *list.List - pointer to the global regions list
-// fSpec *gerbparser.FormatSpec - pointer to the format specif. object
-// NumberOfSteps - number of the created steps started from 1
-
-func createStepSequence(src *[]string,
-	resSteps *[]*render.State,
-	apertl *list.List,
-	regl *list.List,
-	fSpec *FormatSpec) (NumberOfSteps int) {
-
-	stepNumber := 1 // step number
-	stepCompleted := true
-	// create the root step with default properties
-	(*resSteps)[0] = render.NewState()
-	// process string by string
-	var step *render.State
-	for i, s := range *src {
-		if stepCompleted == true {
-			step = new(render.State)
-			*step = *(*resSteps)[stepNumber-1]
-			step.Coord = nil
-			step.PrevCoord = nil
-		}
-		//		fmt.Printf(">>>>>%v  %v\n", stepNumber, arrayOfSteps[stepNumber])
-		createStepResult := step.CreateStep(&s, (*resSteps)[stepNumber-1], apertl, regl, i, fSpec)
-		switch createStepResult {
-		case render.SCResultNextString:
-			fallthrough
-		case render.SCResultSkipString:
-			stepCompleted = false
-			continue
-		case render.SCResultStepCompleted:
-			step.PrevCoord = (*resSteps)[stepNumber-1].Coord
-			step.StepNumber = stepNumber
-			(*resSteps)[stepNumber] = step
-			stepNumber++
-			stepCompleted = true
-			continue
-		case render.SCResultStop:
-			step.StepNumber = stepNumber
-			(*resSteps)[stepNumber] = step
-			step.Coord = (*resSteps)[stepNumber-1].Coord
-			stepNumber++
-			stepCompleted = true
-			break
-		default:
-			break
-		}
-		fmt.Println("Still unknown command: ", s) // print unknown strings
-	} // end of input strings parsing
-	return stepNumber
-}
-
 // PrintMemUsage outputs the current, total and OS memory being used. As well as the number
 // of garbage collection cycles completed.
 func printMemUsage(header string) {
@@ -685,35 +618,6 @@ func timeInfo(prev time.Time) {
 	elapsedSec := (float64(elapsed.Nanoseconds() / (1000 * 1000))) / 1000.0
 	out = out + strconv.FormatFloat(elapsedSec, 'f', 3, 64) + "] "
 	fmt.Print(out)
-}
-
-func unwindSRBlock(steps *[]*render.State, k int) (*[]*render.State, int) {
-	firstSRStep := (*steps)[k]
-	// once came into, no return until sr block stays not fully processed
-	kStop := k + firstSRStep.SRBlock.NSteps() // stop value
-	numXSteps := firstSRStep.SRBlock.NumX()
-	numYSteps := firstSRStep.SRBlock.NumY()
-	numberOfStepsInSRBlock := firstSRStep.SRBlock.NSteps() * numXSteps * numYSteps
-	SRBlockSteps := make([]*render.State, numberOfStepsInSRBlock)
-	stepCounter := 0
-	var addX, addY float64
-	for j := 0; j < numYSteps; j++ {
-		addY = float64(j) * firstSRStep.SRBlock.DY()
-		for i := 0; i < numXSteps; i++ {
-			addX = float64(i) * firstSRStep.SRBlock.DX()
-			for kk := k; kk < kStop; kk++ {
-				SRBlockSteps[stepCounter] = render.NewState()
-				if kk == k {
-					SRBlockSteps[stepCounter].PrevCoord = NewXY()
-				} else {
-					SRBlockSteps[stepCounter].PrevCoord = SRBlockSteps[stepCounter-1].Coord
-				}
-				SRBlockSteps[stepCounter].CopyOfWithOffset((*steps)[kk], addX, addY)
-				stepCounter++
-			}
-		}
-	}
-	return &SRBlockSteps, kStop
 }
 
 /*
@@ -829,11 +733,13 @@ func ProcessStep(stepData *render.State) {
 		case OpcodeD03_FLASH: // flash
 			if renderContext.DrawOnlyRegionsMode != true {
 				renderContext.MovePen(Xp, Yp, Xc, Yc, renderContext.MovePenColor)
+
 				if stepData.Polarity == PolTypeDark {
 					stepColor = renderContext.ApColor
 				} else {
 					stepColor = renderContext.ClearColor
 				}
+
 				w := transformCoord(stepData.CurrentAp.XSize, renderContext.XRes)
 				h := transformCoord(stepData.CurrentAp.YSize, renderContext.YRes)
 				d := transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
@@ -853,8 +759,10 @@ func ProcessStep(stepData *render.State) {
 				case AptypePoly:
 					renderContext.DrawDonut(Xc, Yc, d, hd, renderContext.MissedColor)
 					fmt.Println("Polygonal apertures ain't supported.")
+				case AptypeMacro:
+					stepData.CurrentAp.MacroPtr.Render(Xc, Yc, renderContext)
 				default:
-					checkError(errors.New("bad aperture type found"), 501)
+					checkError(errors.New("bad aperture type found"), 5011)
 					break
 				}
 			}
@@ -892,6 +800,81 @@ func checkError(err error, exitCode int) {
 		fmt.Println(err)
 		os.Exit(exitCode)
 	}
+}
+
+/* ----- gerber string tokenizer ------------------------------------ */
+
+func TokenizeGerber(buf *[]byte) *[]string {
+	retVal := make([]string, 0)
+
+	/*
+		1. if we met '%', all the bytes until next '%' stay unchanged.
+		Leading and trailing '%' are included in the out string
+		2. trim all spaces between trailing '%' and '*' and next non-spase symbol
+		3. each stream of bytes with trailing '*' is treated as separate string
+	*/
+	if len(*buf) < 2 {
+		return &[]string{string(*buf)}
+	}
+	a := 0
+	b := len(*buf)
+	for a < b {
+		if (*buf)[a] == '%' {
+			trailerFound := false
+			// scan for trailing '%'
+			start := a
+			a++
+			for a < b {
+				if (*buf)[a] != '%' {
+					a++
+				} else {
+					trailerFound = true
+					break
+				}
+			}
+			if trailerFound == true {
+				a++
+			}
+			filtered := FilterNewLines(string((*buf)[start:a]))
+			retVal = append(retVal, filtered)
+			continue
+		}
+		if unicode.IsSpace(rune((*buf)[a])) == true {
+			a++
+			continue
+		}
+		if (*buf)[a] != '*' {
+			trailerFound := false
+			// scan for trailing '*'
+			start := a
+			a++
+			for a < b {
+				if (*buf)[a] != '*' {
+					a++
+				} else {
+					trailerFound = true
+					break
+				}
+			}
+			if trailerFound == true {
+				a++
+			}
+			filtered := FilterNewLines(string((*buf)[start:a]))
+			retVal = append(retVal, filtered)
+			continue
+		} else {
+			a++
+			continue
+		}
+	}
+	return &retVal
+}
+
+
+//filters \n \r symbols from the string
+func FilterNewLines(inString string) string  {
+	retVal := strings.Replace(inString, "\n", "", -1)
+	return strings.Replace(retVal, "\r", "", -1)
 }
 
 /* ########################################## EOF #########################################################*/

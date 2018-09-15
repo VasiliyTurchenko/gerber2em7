@@ -221,7 +221,7 @@ func (step *State) CreateStep(
 			}
 		}
 		if step.CurrentAp == nil {
-			checkError(errors.New("the aperture does not exist"), 502)
+			checkError(errors.New("the aperture "+strconv.Itoa(tc) + " does not exist"), 502)
 		}
 		return SCResultNextString
 	}
@@ -258,4 +258,90 @@ func checkError(err error, exitCode int) {
 		fmt.Println(err)
 		os.Exit(exitCode)
 	}
+}
+
+// the function creates a full step sequence using src *[]string as source
+// src *[]string - pointer to the source string array
+// resSteps *[]*gerbparser.State - pointer to the resulting array of the steps, array size must be enough to hold all the staps
+// aperturesList *list.List - pointer to the global aperture list
+// regionsList *list.List - pointer to the global regions list
+// fSpec *gerbparser.FormatSpec - pointer to the format specif. object
+// NumberOfSteps - number of the created steps started from 1
+
+func CreateStepSequence(src *[]string,
+	resSteps *[]*State,
+	apertl *list.List,
+	regl *list.List,
+	fSpec *FormatSpec) (NumberOfSteps int) {
+
+	stepNumber := 1 // step number
+	stepCompleted := true
+	// create the root step with default properties
+	(*resSteps)[0] = NewState()
+	// process string by string
+	var step *State
+	for i, s := range *src {
+		if stepCompleted == true {
+			step = new(State)
+			*step = *(*resSteps)[stepNumber-1]
+			step.Coord = nil
+			step.PrevCoord = nil
+		}
+		//		fmt.Printf(">>>>>%v  %v\n", stepNumber, arrayOfSteps[stepNumber])
+		createStepResult := step.CreateStep(&s, (*resSteps)[stepNumber-1], apertl, regl, i, fSpec)
+		switch createStepResult {
+		case SCResultNextString:
+			fallthrough
+		case SCResultSkipString:
+			stepCompleted = false
+			continue
+		case SCResultStepCompleted:
+			step.PrevCoord = (*resSteps)[stepNumber-1].Coord
+			step.StepNumber = stepNumber
+			(*resSteps)[stepNumber] = step
+			stepNumber++
+			stepCompleted = true
+			continue
+		case SCResultStop:
+			step.StepNumber = stepNumber
+			(*resSteps)[stepNumber] = step
+			step.Coord = (*resSteps)[stepNumber-1].Coord
+			stepNumber++
+			stepCompleted = true
+			break
+		default:
+			break
+		}
+		fmt.Println("Still unknown command: ", s) // print unknown strings
+	} // end of input strings parsing
+	return stepNumber
+}
+
+func UnwindSRBlock(steps *[]*State, k int) (*[]*State, int) {
+	firstSRStep := (*steps)[k]
+	// once came into, no return until sr block stays not fully processed
+	kStop := k + firstSRStep.SRBlock.NSteps() // stop value
+	numXSteps := firstSRStep.SRBlock.NumX()
+	numYSteps := firstSRStep.SRBlock.NumY()
+	numberOfStepsInSRBlock := firstSRStep.SRBlock.NSteps() * numXSteps * numYSteps
+	SRBlockSteps := make([]*State, numberOfStepsInSRBlock)
+	stepCounter := 0
+	var addX, addY float64
+	for j := 0; j < numYSteps; j++ {
+		addY = float64(j) * firstSRStep.SRBlock.DY()
+		for i := 0; i < numXSteps; i++ {
+			addX = float64(i) * firstSRStep.SRBlock.DX()
+			for kk := k; kk < kStop; kk++ {
+				SRBlockSteps[stepCounter] = NewState()
+				if kk == k {
+					SRBlockSteps[stepCounter].PrevCoord = NewXY()
+				} else {
+					SRBlockSteps[stepCounter].PrevCoord = SRBlockSteps[stepCounter-1].Coord
+				}
+				SRBlockSteps[stepCounter].CopyOfWithOffset((*steps)[kk], addX, addY)
+				stepCounter++
+			}
+		}
+	}
+	return &SRBlockSteps, kStop
 }
