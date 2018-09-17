@@ -26,7 +26,7 @@ type AMPrimitive interface {
 	String() string
 
 	// instantiates an macro primitive using parameters, scale factor and macro variables
-	Init(float64)
+	Init(float64) AMPrimitive
 }
 
 // creates and returns new object
@@ -111,8 +111,8 @@ func (amp AMPrimitiveComment) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	return
 }
 
-func (amp AMPrimitiveComment) Init(scale float64) {
-
+func (amp AMPrimitiveComment) Init(scale float64) AMPrimitive {
+	return amp
 }
 
 // ********************************************* CIRCLE *********************************************************
@@ -159,7 +159,7 @@ func (amp AMPrimitiveCircle) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	The rotation modifier is optional. The default is no rotation.
 5	Hole diameter (optional)
  */
-func (amp AMPrimitiveCircle) Init(scale float64) {
+func (amp AMPrimitiveCircle) Init(scale float64) AMPrimitive {
 	if len(amp.AMModifiers) < 4 {
 		panic("unable to create aperture macro primitive circle - not enough parameters, have " +
 			strconv.Itoa(len(amp.AMModifiers)) + ", need 4 or 5")
@@ -168,7 +168,7 @@ func (amp AMPrimitiveCircle) Init(scale float64) {
 		amp.AMModifiers = append(amp.AMModifiers, 0.0)
 	}
 // add hole diameter = 0 if otherwise not specified
-	if len(amp.AMModifiers) == 0 {
+	if len(amp.AMModifiers) == 5 {
 		amp.AMModifiers = append(amp.AMModifiers, 0.0)
 	}
 
@@ -182,6 +182,7 @@ func (amp AMPrimitiveCircle) Init(scale float64) {
 			}
 		}
 	}
+	return amp
 }
 
 // ***************************************** VECTOR LINE *****************************************************
@@ -266,7 +267,7 @@ func (amp AMPrimitiveVectLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 }
 
-func (amp AMPrimitiveVectLine) Init(scale float64) {
+func (amp AMPrimitiveVectLine) Init(scale float64) AMPrimitive {
 	if len(amp.AMModifiers) < 7 {
 		panic("unable to create aperture macro primitive vector line - not enough parameters, have " +
 			strconv.Itoa(len(amp.AMModifiers)) + ", need 7")
@@ -281,6 +282,7 @@ func (amp AMPrimitiveVectLine) Init(scale float64) {
 			}
 		}
 	}
+	return amp
 }
 
 // ***************************************** CENTER LINE *****************************************************
@@ -319,7 +321,7 @@ func (amp AMPrimitiveCenterLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 }
 
-func (amp AMPrimitiveCenterLine) Init(scale float64) {
+func (amp AMPrimitiveCenterLine) Init(scale float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
 		panic("unable to create aperture macro primitive center line - not enough parameters, have " +
 			strconv.Itoa(len(amp.AMModifiers)) + ", need 6")
@@ -334,6 +336,7 @@ func (amp AMPrimitiveCenterLine) Init(scale float64) {
 			}
 		}
 	}
+	return amp
 }
 
 // ***************************************** OUTLINE *****************************************************
@@ -364,8 +367,8 @@ func (amp AMPrimitiveOutLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 }
 
-func (amp AMPrimitiveOutLine) Init(scale float64) {
-
+func (amp AMPrimitiveOutLine) Init(scale float64) AMPrimitive {
+	return amp
 }
 
 
@@ -411,7 +414,7 @@ func (amp AMPrimitivePolygon) Render(x0, y0 int, context *Render) {
 func (amp AMPrimitivePolygon) Draw(x0, y0 int, x1, y1 int, context *Render) {
 }
 
-func (amp AMPrimitivePolygon) Init(scale float64) {
+func (amp AMPrimitivePolygon) Init(scale float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
 		panic("unable to create aperture macro primitive polygon - not enough parameters, have " +
 			strconv.Itoa(len(amp.AMModifiers)) + ", need 6")
@@ -426,7 +429,7 @@ func (amp AMPrimitivePolygon) Init(scale float64) {
 			}
 		}
 	}
-
+	return amp
 }
 
 // ***************************************** MOIRE *****************************************************
@@ -452,8 +455,8 @@ func (amp AMPrimitiveMoire) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 }
 
-func (amp AMPrimitiveMoire) Init(scale float64) {
-
+func (amp AMPrimitiveMoire) Init(scale float64) AMPrimitive {
+	return amp
 }
 
 // ***************************************** THERMAL *****************************************************
@@ -478,8 +481,8 @@ func (amp AMPrimitiveThermal) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 }
 
-func (amp AMPrimitiveThermal) Init(scale float64) {
-
+func (amp AMPrimitiveThermal) Init(scale float64) AMPrimitive {
+	return amp
 }
 
 // ********************************************* AM container *************************************************
@@ -591,8 +594,8 @@ func (am ApertureMacro) Draw(x0, y0 int, x1, y1 int,  context *Render) {
 	return
 }
 
-func (am ApertureMacro) Init(scale float64) {
-
+func (am ApertureMacro) Init(scale float64) ApertureMacro {
+	return am
 }
 
 /*
@@ -704,24 +707,28 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 		retVal.Code = code
 		// find in macro definitions dictionary for the name
 
-		var instance *ApertureMacro
-		for i := range AMacroDict {
-			if strings.Compare(AMacroDict[i].Name, name) == 0 {
-				instance = new(ApertureMacro)
-				*instance = *AMacroDict[i]
+		var instance ApertureMacro
+		for j := range AMacroDict {
+			if strings.Compare(AMacroDict[j].Name, name) == 0 {
+				//instance = new(ApertureMacro)
+				//*instance = *AMacroDict[j]
+				instance = ApertureMacro{AMacroDict[j].Name,
+					AMacroDict[j].Comments,
+					AMacroDict[j].Variables,
+					AMacroDict[j].Primitives}
 
-				for i := range (*instance).Primitives {
-					(*instance).Primitives[i].Init(scale)
+				for k := 0; k < len(instance.Primitives); k++ {
+					instance.Primitives[k] = instance.Primitives[k].Init(scale)
 				}
 
 				break
 			}
 		}
-		if instance == nil {
+		if len(instance.Name) == 0 {
 			panic("unable to instantiate aperture macro " + strconv.Itoa(code) + name)
 		}
 
-		retVal.MacroPtr = instance
+		retVal.MacroPtr = &instance
 	}
 	return retVal
 }
