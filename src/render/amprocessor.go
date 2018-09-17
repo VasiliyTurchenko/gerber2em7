@@ -135,8 +135,9 @@ func (amp AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
 	xC := x0 + transformCoord(xd, context.XRes)
 	yC := y0 + transformCoord(yd, context.YRes)
 	d := transformCoord(amp.AMModifiers[1].(float64), context.XRes)
+	hd := transformCoord(amp.AMModifiers[5].(float64), context.XRes)
 	context.MovePen(x0,y0,xC,yC, context.MovePenColor)
-	context.DrawDonut(xC, yC, d, 0, context.ApColor)
+	context.DrawDonut(xC, yC, d, hd, context.ApColor)
 	// go back
 	context.MovePen(xC,yC,x0,y0, context.MovePenColor)
 	return
