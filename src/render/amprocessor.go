@@ -144,7 +144,7 @@ func (amp AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
 }
 
 func (amp AMPrimitiveCircle) Draw(x0, y0 int, x1, y1 int, context *Render) {
-
+// TODO
 	return
 }
 // Instantiates circle primitive
@@ -264,7 +264,7 @@ func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 }
 
 func (amp AMPrimitiveVectLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
-
+// TODO
 }
 
 func (amp AMPrimitiveVectLine) Init(scale float64) AMPrimitive {
@@ -318,7 +318,7 @@ func (amp AMPrimitiveCenterLine) Render(x0, y0 int, context *Render) {
 	return
 }
 func (amp AMPrimitiveCenterLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
-
+// TODO
 }
 
 func (amp AMPrimitiveCenterLine) Init(scale float64) AMPrimitive {
@@ -360,17 +360,72 @@ func (amp AMPrimitiveOutLine) String() string {
 }
 
 func (amp AMPrimitiveOutLine) Render(x0, y0 int, context *Render) {
+	numCoordPairs := int(convertToFloat(amp.AMModifiers[1])) + 1
+	rot := amp.AMModifiers[len(amp.AMModifiers) - 1].(float64)
+	verticesX := make([]float64, 0)
+	verticesY := make([]float64, 0)
+	i := 2
+	for i < 2 + numCoordPairs * 2 {
+		verticesX = append(verticesX, amp.AMModifiers[i].(float64))
+		verticesY = append(verticesY, amp.AMModifiers[i+1].(float64))
+		i += 2
+	}
+	for i := range verticesX {
+		verticesX[i], verticesY[i], _ = RotatePoint(verticesX[i], verticesY[i], rot)
+		verticesX[i] = float64(x0) + transformFloatCoord(verticesX[i], context.XRes)
+		verticesY[i] = float64(y0) + transformFloatCoord(verticesY[i], context.YRes)
+	}
+	context.MovePen(x0, y0, int(verticesX[0]), int(verticesY[0]), context.MovePenColor)
+	context.RenderOutline(&verticesX, &verticesY)
+	context.MovePen(int(verticesX[0]), int(verticesY[0]), x0, y0, context.MovePenColor)
 	return
 }
 
 func (amp AMPrimitiveOutLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
+	// TODO
 
 }
-
+/*
+0		Exposure off/on (0/1)
+1		The number of vertices of the outline = the number of coordinate
+		pairs minus one.
+		An integer ≥3.
+2, 3	Start point X and Y coordinates. Decimals.
+4, 5	First subsequent X and Y coordinates. Decimals.
+		... Further subsequent X and Y coordinates. Decimals.
+		The X and Y coordinates are not modal: both X and Y must be
+		specified for all points.
+4+2n, 5+2n Last subsequent X and Y coordinates. Decimals.
+		Must be equal to the start coordinates.
+6+2n	Rotation angle, in degrees counterclockwise, a decimal.
+		The primitive is rotated around the origin of the macro definition, i.e. the
+		(0, 0) point of macro coordinates.
+ */
 func (amp AMPrimitiveOutLine) Init(scale float64) AMPrimitive {
+	numCoordPairs := int(convertToFloat(amp.AMModifiers[1]))
+	if numCoordPairs < 3 {
+		panic("unable to create aperture macro primitive outline - not enough coordinate pairs, have " +
+			strconv.Itoa(numCoordPairs) + ", need at least 3")
+	}
+	correctLength := 2 + numCoordPairs*2 + 1
+	if len(amp.AMModifiers) < correctLength {
+		panic("unable to create aperture macro primitive outline - not enough parameters, have " +
+			strconv.Itoa(len(amp.AMModifiers)) + ", need " + strconv.Itoa(correctLength))
+	}
+	numCoordPairs++
+
+	for i := range amp.AMModifiers {
+		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i])
+		if i > 2 && i < len(amp.AMModifiers) - 2 {
+			switch amp.AMModifiers[i].(type) {
+			case float64:
+				amp.AMModifiers[i] = scale * (amp.AMModifiers[i]).(float64)
+			default:
+			}
+		}
+	}
 	return amp
 }
-
 
 // ***************************************** POLYGON *****************************************************
 type AMPrimitivePolygon struct {
@@ -412,6 +467,7 @@ func (amp AMPrimitivePolygon) Render(x0, y0 int, context *Render) {
 }
 
 func (amp AMPrimitivePolygon) Draw(x0, y0 int, x1, y1 int, context *Render) {
+	// TODO
 }
 
 func (amp AMPrimitivePolygon) Init(scale float64) AMPrimitive {
@@ -448,14 +504,17 @@ func (amp AMPrimitiveMoire) String() string {
 }
 
 func (amp AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
+	// TODO
 	return
 }
 
 func (amp AMPrimitiveMoire) Draw(x0, y0 int, x1, y1 int, context *Render) {
+	// TODO
 
 }
 
 func (amp AMPrimitiveMoire) Init(scale float64) AMPrimitive {
+	// TODO
 	return amp
 }
 
@@ -474,14 +533,17 @@ func (amp AMPrimitiveThermal) String() string {
 }
 
 func (amp AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
+	// TODO
 	return
 }
 
 func (amp AMPrimitiveThermal) Draw(x0, y0 int, x1, y1 int, context *Render) {
+	// TODO
 
 }
 
 func (amp AMPrimitiveThermal) Init(scale float64) AMPrimitive {
+	// TODO
 	return amp
 }
 
@@ -710,24 +772,19 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 		var instance ApertureMacro
 		for j := range AMacroDict {
 			if strings.Compare(AMacroDict[j].Name, name) == 0 {
-				//instance = new(ApertureMacro)
-				//*instance = *AMacroDict[j]
 				instance = ApertureMacro{AMacroDict[j].Name,
 					AMacroDict[j].Comments,
 					AMacroDict[j].Variables,
 					AMacroDict[j].Primitives}
-
 				for k := 0; k < len(instance.Primitives); k++ {
 					instance.Primitives[k] = instance.Primitives[k].Init(scale)
 				}
-
 				break
 			}
 		}
 		if len(instance.Name) == 0 {
 			panic("unable to instantiate aperture macro " + strconv.Itoa(code) + name)
 		}
-
 		retVal.MacroPtr = &instance
 	}
 	return retVal

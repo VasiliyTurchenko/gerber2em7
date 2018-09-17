@@ -181,6 +181,8 @@ func (rc *Render) setPoint(x, y, pointSize int, col color.Color) {
 	if pointSize < 0 {
 		return
 	}
+	pointSize = pointSize / 2 + pointSize % 2
+	// actually does not draw filled circle but only cirle line
 	if rc.DrawContours == false {
 		// Draw by bresenham algorithm
 		x1, y1, err := -pointSize, 0, 2-2*pointSize
