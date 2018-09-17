@@ -4,6 +4,7 @@
 package render
 
 import (
+	"errors"
 	"fmt"
 	. "gerberbasetypes"
 	"strconv"
@@ -80,116 +81,31 @@ func (apert *Aperture) Render(xC int, yC int, render *Render) {
 	if apert.Type == AptypeMacro {
 		apert.MacroPtr.Render(xC, yC, render)
 	} else {
-
+			w := transformCoord(apert.XSize, render.XRes)
+			h := transformCoord(apert.YSize, render.YRes)
+			d := transformCoord(apert.Diameter, render.XRes)
+			hd := transformCoord(apert.HoleDiameter, render.XRes)
+			switch apert.Type {
+			case AptypeRectangle:
+				render.DrawFilledRectangle(xC, yC, w, h, render.ApColor)
+			case AptypeCircle:
+				render.DrawDonut(xC, yC, d, hd, render.ApColor)
+			case AptypeObround:
+				if w == h {
+					render.DrawDonut(xC, yC, w, hd, render.ApColor)
+				} else {
+					render.DrawObRound(xC, yC, w, h, 0, render.ObRoundColor)
+				}
+			case AptypePoly:
+				render.DrawDonut(xC, yC, d, hd, render.MissedColor)
+				fmt.Println("Polygonal apertures ain't supported.")
+			default:
+				checkError(errors.New("bad aperture type found"), 5011)
+				break
+			}
 	}
 }
 
-// %ADD10C,0.0650*%
-//     ^--------^
-//func (apert *Aperture) Init(sourceString string, scale float64) error {
-//	sourceString = strings.TrimSpace(sourceString)
-//	var err error = nil
-//	apert.SourceString = sourceString
-//
-//	apertureCodePosition := strings.IndexAny(sourceString, "CROP")
-//	apert.Code, err = strconv.Atoi(sourceString[:apertureCodePosition])
-//	if err == nil {
-//		var tmpVal float64
-//		tmpSplitted := strings.Split(sourceString[apertureCodePosition+2:], "X")
-//		for j := range tmpSplitted {
-//			tmpSplitted[j] = strings.TrimSpace(tmpSplitted[j])
-//		}
-//		switch sourceString[apertureCodePosition] {
-//		case 'C':
-//			apert.Type = AptypeCircle
-//			if len(tmpSplitted) == 1 || len(tmpSplitted) == 2 {
-//				for i, s := range tmpSplitted {
-//					tmpVal, err = strconv.ParseFloat(s, 64)
-//					if err == nil {
-//						switch i {
-//						case 0:
-//							apert.Diameter = float64(tmpVal)
-//						case 1:
-//							apert.HoleDiameter = float64(tmpVal)
-//						}
-//					}
-//				}
-//			} else {
-//				err = errors.New("bad number of parameters for circle aperture")
-//			}
-//		case 'R':
-//			apert.Type = AptypeRectangle
-//			if len(tmpSplitted) == 2 || len(tmpSplitted) == 3 {
-//				for i, s := range tmpSplitted {
-//					tmpVal, err = strconv.ParseFloat(s, 64)
-//					if err == nil {
-//						switch i {
-//						case 0:
-//							apert.XSize = float64(tmpVal)
-//						case 1:
-//							apert.YSize = float64(tmpVal)
-//						case 2:
-//							apert.HoleDiameter = float64(tmpVal)
-//						}
-//					}
-//				}
-//			} else {
-//				err = errors.New("bad number of parameters for rectangle aperture")
-//			}
-//		case 'O':
-//			apert.Type = AptypeObround
-//			if len(tmpSplitted) == 2 || len(tmpSplitted) == 3 {
-//				for i, s := range tmpSplitted {
-//					tmpVal, err = strconv.ParseFloat(s, 64)
-//					if err == nil {
-//						switch i {
-//						case 0:
-//							apert.XSize = float64(tmpVal)
-//						case 1:
-//							apert.YSize = float64(tmpVal)
-//						case 2:
-//							apert.HoleDiameter = float64(tmpVal)
-//						}
-//					}
-//				}
-//			} else {
-//				err = errors.New("bad number of parameters for obround aperture")
-//			}
-//		case 'P':
-//			apert.Type = AptypePoly
-//			if len(tmpSplitted) >= 2 && len(tmpSplitted) < 5 {
-//				for i, s := range tmpSplitted {
-//					tmpVal, err = strconv.ParseFloat(s, 64)
-//					if err == nil {
-//						switch i {
-//						case 0:
-//							apert.Diameter = float64(tmpVal) // OuterDiameter
-//						case 1:
-//							apert.Vertices = int(tmpVal)
-//						case 2:
-//							apert.RotAngle = float64(tmpVal)
-//						case 3:
-//							apert.HoleDiameter = float64(tmpVal)
-//						}
-//					}
-//				}
-//			} else {
-//				err = errors.New("bad number of parameters for polygon aperture")
-//			}
-//		default:
-//			err = errors.New("aperture macro is not supported")
-//			goto fExit
-//		}
-//	} else {
-//		err = errors.New("bad aperture number ")
-//	}
-//
-//	apert.HoleDiameter *= scale
-//	apert.Diameter *= scale
-//	apert.YSize *= scale
-//	apert.XSize *= scale
-//
-//fExit:
-//	return err
-//}
-//
+func (apert *Aperture) Draw(x0, y0 int, x1, y1 int,  context *Render) {
+
+}

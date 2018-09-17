@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"math/rand"
 	"strings"
 	"testing"
@@ -140,4 +141,14 @@ func TestArrayInfo(t *testing.T) {
 	names := []string{"", "name1", "name2", "name3", "name4"}
 	retval := ArrayInfo(items, names)
 	t.Log("\n" + retval)
+}
+
+func TestRotatePoint(t *testing.T) {
+	x1, y1, _ := RotatePoint(1, 0, 90)
+	fmt.Println("x1=", x1, " y1=", y1)
+	x1, y1, _ = RotatePoint(1, 0, 180)
+	fmt.Println("x1=", x1, " y1=", y1)
+	x1, y1, _ = RotatePoint(1, 0, 0)
+	fmt.Println("x1=", x1, " y1=", y1)
+
 }

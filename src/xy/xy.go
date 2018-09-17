@@ -13,7 +13,6 @@ const GerberMOMM string = "%MOMM*%"
 
 const InchesToMM float64 = 25.4
 
-
 // Function checks against non-number characters in the string
 func isNumString(ins string) bool {
 	v := []byte(ins)

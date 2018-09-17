@@ -733,38 +733,12 @@ func ProcessStep(stepData *render.State) {
 		case OpcodeD03_FLASH: // flash
 			if renderContext.DrawOnlyRegionsMode != true {
 				renderContext.MovePen(Xp, Yp, Xc, Yc, renderContext.MovePenColor)
-
 				if stepData.Polarity == PolTypeDark {
-					stepColor = renderContext.ApColor
+					stepData.CurrentAp.Render(Xc, Yc, renderContext)
 				} else {
-					stepColor = renderContext.ClearColor
+					fmt.Println("Clear polarity is not supported.")
 				}
 
-				w := transformCoord(stepData.CurrentAp.XSize, renderContext.XRes)
-				h := transformCoord(stepData.CurrentAp.YSize, renderContext.YRes)
-				d := transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
-				hd := transformCoord(stepData.CurrentAp.HoleDiameter, renderContext.XRes)
-
-				switch stepData.CurrentAp.Type {
-				case AptypeRectangle:
-					renderContext.DrawFilledRectangle(Xc, Yc, w, h, stepColor)
-				case AptypeCircle:
-					renderContext.DrawDonut(Xc, Yc, d, hd, stepColor)
-				case AptypeObround:
-					if w == h {
-						renderContext.DrawDonut(Xc, Yc, w, hd, stepColor)
-					} else {
-						renderContext.DrawObRound(Xc, Yc, w, h, 0, renderContext.ObRoundColor)
-					}
-				case AptypePoly:
-					renderContext.DrawDonut(Xc, Yc, d, hd, renderContext.MissedColor)
-					fmt.Println("Polygonal apertures ain't supported.")
-				case AptypeMacro:
-					stepData.CurrentAp.MacroPtr.Render(Xc, Yc, renderContext)
-				default:
-					checkError(errors.New("bad aperture type found"), 5011)
-					break
-				}
 			}
 		default:
 			checkError(errors.New("(renderContext *Render) ProcessStep(stepData *gerbparser.State) internal error. Bad opcode"), 666)
@@ -775,7 +749,6 @@ func ProcessStep(stepData *render.State) {
 }
 
 /* some draw helpers */
-
 func transformCoord(inc float64, res float64) int {
 	return int(inc / res)
 }

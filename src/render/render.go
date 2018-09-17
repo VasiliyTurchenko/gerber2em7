@@ -871,7 +871,7 @@ func deg2Rad(a float64) float64 {
 
 /*
 *********************** region (polygon) processor ***********************************
-*/
+ */
 
 type Polygon struct {
 	steps       *[]*State
@@ -927,80 +927,26 @@ func (rc *Render) RenderPolygon() {
 
 	// let's create a array of nodes (vertices)
 	rc.PolygonPtr.numVertices = len(*rc.PolygonPtr.steps)
-	minYInPolygon := 100000000.0
-	maxYInPolygon := 0.0
 	for j := 0; j < rc.PolygonPtr.numVertices; j++ {
 		if (*rc.PolygonPtr.steps)[j].IpMode != IPModeLinear {
-			//			rc.interpolate(&minYInPolygon, &maxYInPolygon, &steps[j])
-			rc.interpolate(&minYInPolygon, &maxYInPolygon, (*rc.PolygonPtr.steps)[j])
+			rc.interpolate((*rc.PolygonPtr.steps)[j])
 		} else {
 			xj := ((*rc.PolygonPtr.steps)[j].Coord.GetX() - rc.MinX) / rc.XRes
 			yj := ((*rc.PolygonPtr.steps)[j].Coord.GetY() - rc.MinY) / rc.YRes
-			if yj < minYInPolygon {
-				minYInPolygon = yj
-			}
-			if yj > maxYInPolygon {
-				maxYInPolygon = yj
-			}
 			*rc.PolygonPtr.polX = append(*rc.PolygonPtr.polX, xj)
 			*rc.PolygonPtr.polY = append(*rc.PolygonPtr.polY, yj)
 		}
 	}
 	rc.PolygonPtr.numVertices = len(*rc.PolygonPtr.polX)
 
-	var nodes = 0
-	var nodeX []int
-	nodeX = make([]int, rc.PolygonPtr.numVertices)
-	var pixelY int
-
-	// take into account real plotter pen setPoint size
-	startY := int(math.Round(minYInPolygon + rc.PointSize/2))
-	stopY := int(math.Round(maxYInPolygon - rc.PointSize/2))
-	marginX := int(math.Round(rc.PointSize / 2))
-
-	// fill the inner points of the polygon
-	var i int = 0
-	for pixelY = startY; pixelY < stopY; pixelY += rc.PointSizeI {
-		fPixelY := float64(pixelY)
-		nodes = 0
-		j := rc.PolygonPtr.numVertices - 1
-		for i = 0; i < rc.PolygonPtr.numVertices; i++ {
-			if ((*rc.PolygonPtr.polY)[i] < fPixelY && (*rc.PolygonPtr.polY)[j] >= fPixelY) ||
-				((*rc.PolygonPtr.polY)[j] < fPixelY && (*rc.PolygonPtr.polY)[i] >= fPixelY) {
-				nodeX[nodes] = int((*rc.PolygonPtr.polX)[i] + ((fPixelY)-(*rc.PolygonPtr.polY)[i])/
-					((*rc.PolygonPtr.polY)[j]-(*rc.PolygonPtr.polY)[i])*((*rc.PolygonPtr.polX)[j]-(*rc.PolygonPtr.polX)[i]))
-				nodes++
-			}
-			j = i
-		}
-		i = 0
-		for {
-			if i < nodes-1 {
-				if nodeX[i] > nodeX[i+1] {
-					nodeX[i], nodeX[i+1] = nodeX[i+1], nodeX[i]
-					if i != 0 {
-						i--
-					}
-				} else {
-					i++
-				}
-			} else {
-				break
-			}
-		}
-		//  Fill the pixels between node pairs.
-		for i = 0; i < nodes; i += 2 {
-			rc.drawByBrezenham(nodeX[i]+marginX, pixelY, nodeX[i+1]-marginX, pixelY, rc.PointSizeI, rc.RegionColor)
-			rc.Plt.DrawLine(nodeX[i]+marginX, pixelY, nodeX[i+1]-marginX, pixelY)
-		}
-	}
+	rc.RenderOutline(rc.PolygonPtr.polX, rc.PolygonPtr.polY)
 	return
 }
 
 /*
 interpolate circle by straight lines
 */
-func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *State) {
+func (rc *Render) interpolate(st *State) {
 	var xc, yc float64 // DrawArc center coordinates in mm
 	if st.QMode == QuadModeSingle {
 		// we have to find the sign of the I and J
@@ -1051,15 +997,7 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *State) {
 		for {
 			ax := r*math.Cos(deg2Rad(angle)) + xc
 			ay := r*math.Sin(deg2Rad(angle)) + yc
-			ay, res := rc.addToCorners(ax, ay)
-			if res == true {
-				if ay > *maxpoly {
-					*maxpoly = ay
-				}
-				if ay < *minpoly {
-					*minpoly = ay
-				}
-			}
+			ay, _ = rc.addToCorners(ax, ay)
 			angle++
 			if angle > fi2 {
 				break
@@ -1073,15 +1011,7 @@ func (rc *Render) interpolate(minpoly *float64, maxpoly *float64, st *State) {
 		for {
 			ax := r*math.Cos(deg2Rad(angle)) + xc
 			ay := r*math.Sin(deg2Rad(angle)) + yc
-			ay, res := rc.addToCorners(ax, ay)
-			if res == true {
-				if ay > *maxpoly {
-					*maxpoly = ay
-				}
-				if ay < *minpoly {
-					*minpoly = ay
-				}
-			}
+			ay, _ = rc.addToCorners(ax, ay)
 			angle--
 			if angle < fi2 {
 				break
@@ -1115,7 +1045,85 @@ func (rc *Render) addToCorners(ax, ay float64) (float64, bool) {
 /* some draw helpers */
 
 func transformCoord(inc float64, res float64) int {
-	return int(inc / res)
+	return int(math.Round(inc / res))
+}
+
+func transformFloatCoord(inc float64, res float64) float64 {
+	return inc / res
+}
+
+
+// renders an outline (a.k.a. polygon).
+// edges are straight lines
+// coordinates are pixels of rc.Img but in float64
+func (rc *Render) RenderOutline(verticesX *[]float64, verticesY *[]float64) {
+
+	if len(*verticesX) != len(*verticesY) {
+		panic("(rc *Render) RenderOutline() : vertices arrays lengths are different")
+	}
+	numVertices := len(*verticesX)
+	minY := (*verticesY)[0]
+	maxY := (*verticesY)[0]
+	for _, y := range *verticesY {
+		if y > maxY {
+			maxY = y
+		}
+		if y < minY {
+			minY = y
+		}
+	}
+
+	var nodes = 0
+	var nodeX []int
+	nodeX = make([]int, numVertices)
+	var pixelY int
+
+	// take into account real plotter pen setPoint size
+	marginX := rc.PointSize / 2
+	marginXI := int(math.Round(marginX))
+	startY := int(math.Round(minY + marginX))
+	stopY := int(math.Round(maxY - marginX))
+
+	// fill the inner points of the polygon
+	var i = 0
+
+	for pixelY = startY; pixelY < stopY; pixelY += rc.PointSizeI {
+		fPixelY := float64(pixelY)
+		nodes = 0
+		j := numVertices - 1
+		for i = 0; i < numVertices; i++ {
+			if ((*verticesY)[i] < fPixelY && (*verticesY)[j] >= fPixelY) ||
+				((*verticesY)[j] < fPixelY && (*verticesY)[i] >= fPixelY) {
+
+				nodeX[nodes] = int(math.Round((*verticesX)[i] + (fPixelY-(*verticesY)[i])/
+					((*verticesY)[j]-(*verticesY)[i])*((*verticesX)[j]-(*verticesX)[i])))
+
+				nodes++
+			}
+			j = i
+		}
+		i = 0
+		for {
+			if i < nodes-1 {
+				if nodeX[i] > nodeX[i+1] {
+					nodeX[i], nodeX[i+1] = nodeX[i+1], nodeX[i]
+					if i != 0 {
+						i--
+					}
+				} else {
+					i++
+				}
+			} else {
+				break
+			}
+		}
+		//  Fill the pixels between node pairs.
+		for i = 0; i < nodes; i += 2 {
+			rc.drawByBrezenham(nodeX[i]+marginXI, pixelY, nodeX[i+1]-marginXI, pixelY, rc.PointSizeI, rc.RegionColor)
+			rc.Plt.DrawLine(nodeX[i]+marginXI, pixelY, nodeX[i+1]-marginXI, pixelY)
+		}
+	}
+	return
 }
 
 // ################################### EOF ###############################################
