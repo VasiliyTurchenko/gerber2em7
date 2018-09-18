@@ -431,15 +431,16 @@ func searchFS(storage *stor.Storage) (string, error) {
 		if strings.HasPrefix(s, "%FST") {
 			return s, errors.New("trailing zero omission format is not supported") // + 09-Jun-2018
 		}
-		if strings.HasPrefix(s, "%FSLI") {
+		if strings.HasPrefix(s, "%FSLI") || strings.HasPrefix(s, "%FSTI") {
 			return s, errors.New("incremental coordinates ain't supported") // + 09-Jun-2018
 		}
+
 		if strings.HasPrefix(s, GerberFormatSpec) {
 			return s, nil
 		}
 		s = storage.String()
 	}
-	return "", errors.New("_FS_ command not found")
+	return "", errors.New("%FS command not found")
 }
 
 /*

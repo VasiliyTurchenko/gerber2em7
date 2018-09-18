@@ -20,13 +20,17 @@ type AMPrimitive interface {
 	//	Render(int, int, color.RGBA)
 	Render(int, int, *Render)
 
+	// draws a line or an arc using aperture as "brush"
 	Draw(int, int, int, int, *Render)
 
 	// returns a string representation of thr primitive
 	String() string
 
 	// instantiates an macro primitive using parameters, scale factor and macro variables
-	Init(float64) AMPrimitive
+	Init(float64, []float64) AMPrimitive
+
+	// returns a copy of object
+	Copy() AMPrimitive
 }
 
 // creates and returns new object
@@ -100,6 +104,7 @@ type AMPrimitiveComment struct {
 func (amp AMPrimitiveComment) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
+	retVal = retVal + ArrayInfo(amp.AMModifiers, []string{})
 	return retVal
 }
 
@@ -111,8 +116,17 @@ func (amp AMPrimitiveComment) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	return
 }
 
-func (amp AMPrimitiveComment) Init(scale float64) AMPrimitive {
-	return amp
+func (amp AMPrimitiveComment) Init(scale float64, params []float64) AMPrimitive {
+
+	return NewAMPrimitive(AMPrimitive_Comment, []interface{}{})
+}
+
+func (amp AMPrimitiveComment) Copy() AMPrimitive {
+	var modifStrings []interface{}
+	for i := range amp.AMModifiers {
+		modifStrings = append(modifStrings, amp.AMModifiers[i])
+	}
+	return NewAMPrimitive(AMPrimitive_Comment,modifStrings)
 }
 
 // ********************************************* CIRCLE *********************************************************
@@ -120,6 +134,10 @@ func (amp AMPrimitiveComment) Init(scale float64) AMPrimitive {
 type AMPrimitiveCircle struct {
 	PrimitiveType AMPrimitiveType
 	AMModifiers   []interface{}
+	//cirCX	int
+	//cirCY	int
+	//cirD	int
+	//cirHD	int
 }
 
 func (amp AMPrimitiveCircle) String() string {
@@ -136,17 +154,21 @@ func (amp AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
 	yC := y0 + transformCoord(yd, context.YRes)
 	d := transformCoord(amp.AMModifiers[1].(float64), context.XRes)
 	hd := transformCoord(amp.AMModifiers[5].(float64), context.XRes)
-	context.MovePen(x0,y0,xC,yC, context.MovePenColor)
+	//xC := amp.cirCX + x0
+	//yC := amp.cirCY + y0
+	context.MovePen(x0, y0, xC, yC, context.MovePenColor)
+//	context.DrawDonut(xC, yC, amp.cirD, amp.cirHD, context.ApColor)
 	context.DrawDonut(xC, yC, d, hd, context.ApColor)
 	// go back
-	context.MovePen(xC,yC,x0,y0, context.MovePenColor)
+	context.MovePen(xC, yC, x0, y0, context.MovePenColor)
 	return
 }
 
 func (amp AMPrimitiveCircle) Draw(x0, y0 int, x1, y1 int, context *Render) {
-// TODO
+	BadMethod()
 	return
 }
+
 // Instantiates circle primitive
 /*
 0	Exposure off/on (0/1)
@@ -158,8 +180,8 @@ func (amp AMPrimitiveCircle) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	(0, 0) point of macro coordinates.
 	The rotation modifier is optional. The default is no rotation.
 5	Hole diameter (optional)
- */
-func (amp AMPrimitiveCircle) Init(scale float64) AMPrimitive {
+*/
+func (amp AMPrimitiveCircle) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 4 {
 		panic("unable to create aperture macro primitive circle - not enough parameters, have " +
 			strconv.Itoa(len(amp.AMModifiers)) + ", need 4 or 5")
@@ -167,23 +189,39 @@ func (amp AMPrimitiveCircle) Init(scale float64) AMPrimitive {
 	if len(amp.AMModifiers) == 4 {
 		amp.AMModifiers = append(amp.AMModifiers, 0.0)
 	}
-// add hole diameter = 0 if otherwise not specified
+	// add hole diameter = 0 if otherwise not specified
 	if len(amp.AMModifiers) == 5 {
 		amp.AMModifiers = append(amp.AMModifiers, 0.0)
 	}
 
 	for i := range amp.AMModifiers {
-		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i])
+		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
 		if (i > 0 && i < 4) || i == 5 {
-			switch amp.AMModifiers[i].(type) {
-			case float64:
-				amp.AMModifiers[i] = scale * (amp.AMModifiers[i]).(float64)
-			default:
-			}
+			//switch amp.AMModifiers[i].(type) {
+			//case float64:
+			//	amp.AMModifiers[i] = scale * (amp.AMModifiers[i]).(float64)
+			//default:
+			amp.AMModifiers[i] = scale * (amp.AMModifiers[i]).(float64)
+			//}
 		}
 	}
+	//xd, yd, _ := RotatePoint(amp.AMModifiers[2].(float64), amp.AMModifiers[3].(float64), amp.AMModifiers[4].(float64))
+	//amp.cirCX = transformCoord(xd, context.XRes)
+	//amp.cirCY = transformCoord(yd, context.YRes)
+	//amp.cirD = transformCoord(amp.AMModifiers[1].(float64), context.XRes)
+	//amp.cirHD = transformCoord(amp.AMModifiers[5].(float64), context.XRes)
+	//
 	return amp
 }
+
+func (amp AMPrimitiveCircle) Copy() AMPrimitive {
+	var modifStrings []interface{}
+	for i := range amp.AMModifiers {
+		modifStrings = append(modifStrings, amp.AMModifiers[i])
+	}
+	return NewAMPrimitive(AMPrimitive_Circle,modifStrings)
+}
+
 
 // ***************************************** VECTOR LINE *****************************************************
 type AMPrimitiveVectLine struct {
@@ -209,7 +247,7 @@ func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 	yStart := transformCoord(ysr, context.YRes)
 
 	xer, yer, _ := RotatePoint(amp.AMModifiers[4].(float64), amp.AMModifiers[5].(float64), rot)
-	xEnd := transformCoord(xer,  context.XRes)
+	xEnd := transformCoord(xer, context.XRes)
 	yEnd := transformCoord(yer, context.YRes)
 
 	var dx, dy, height int
@@ -218,11 +256,11 @@ func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 		if xStart == xEnd {
 			dx = xStart
 			height = yEnd - yStart
-			dy = yStart + height/ 2
+			dy = yStart + height/2
 		}
 		if yStart == yEnd {
-			width , height = xEnd - xStart, width
-			dx = xStart + (width) / 2
+			width, height = xEnd-xStart, width
+			dx = xStart + (width)/2
 			dy = yStart
 		}
 		if height < 0 {
@@ -231,24 +269,24 @@ func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 		if width < 0 {
 			width = -width
 		}
-		context.MovePen(x0, y0, x0 + dx, y0 + dy, context.MovePenColor)
-		context.DrawFilledRectangle(x0 + dx, y0 + dy, width, height, context.ApColor)
-		context.MovePen(x0 + dx, y0 + dy, x0, y0, context.MovePenColor)
+		context.MovePen(x0, y0, x0+dx, y0+dy, context.MovePenColor)
+		context.DrawFilledRectangle(x0+dx, y0+dy, width, height, context.ApColor)
+		context.MovePen(x0+dx, y0+dy, x0, y0, context.MovePenColor)
 	} else {
-		phi, _ := GetAngle(xer - xsr, yer-ysr)
+		phi, _ := GetAngle(xer-xsr, yer-ysr)
 		widthF := amp.AMModifiers[1].(float64)
 		verticesX := make([]float64, 0)
 		verticesY := make([]float64, 0)
 		xd := (widthF / 2) * math.Sin(phi)
 		yd := (widthF / 2) * math.Cos(phi)
-		verticesX = append(verticesX, xsr + xd)
-		verticesY = append(verticesY, ysr - yd)
-		verticesX = append(verticesX, xsr - xd)
-		verticesY = append(verticesY, ysr + yd)
-		verticesX = append(verticesX, xer - xd)
-		verticesY = append(verticesY, yer + yd)
-		verticesX = append(verticesX, xer + xd)
-		verticesY = append(verticesY, yer - yd)
+		verticesX = append(verticesX, xsr+xd)
+		verticesY = append(verticesY, ysr-yd)
+		verticesX = append(verticesX, xsr-xd)
+		verticesY = append(verticesY, ysr+yd)
+		verticesX = append(verticesX, xer-xd)
+		verticesY = append(verticesY, yer+yd)
+		verticesX = append(verticesX, xer+xd)
+		verticesY = append(verticesY, yer-yd)
 		verticesX = append(verticesX, verticesX[0])
 		verticesY = append(verticesY, verticesY[0])
 
@@ -264,16 +302,16 @@ func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 }
 
 func (amp AMPrimitiveVectLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
-// TODO
+	BadMethod()
 }
 
-func (amp AMPrimitiveVectLine) Init(scale float64) AMPrimitive {
+func (amp AMPrimitiveVectLine) Init(scale float64,  params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 7 {
 		panic("unable to create aperture macro primitive vector line - not enough parameters, have " +
 			strconv.Itoa(len(amp.AMModifiers)) + ", need 7")
 	}
 	for i := range amp.AMModifiers {
-		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i])
+		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
 		if i > 0 && i < 6 {
 			switch amp.AMModifiers[i].(type) {
 			case float64:
@@ -284,6 +322,15 @@ func (amp AMPrimitiveVectLine) Init(scale float64) AMPrimitive {
 	}
 	return amp
 }
+
+func (amp AMPrimitiveVectLine) Copy() AMPrimitive {
+	var modifStrings []interface{}
+	for i := range amp.AMModifiers {
+		modifStrings = append(modifStrings, amp.AMModifiers[i])
+	}
+	return NewAMPrimitive(AMPrimitive_VectLine,modifStrings)
+}
+
 
 // ***************************************** CENTER LINE *****************************************************
 type AMPrimitiveCenterLine struct {
@@ -304,30 +351,30 @@ func (amp AMPrimitiveCenterLine) Render(x0, y0 int, context *Render) {
 	// make VectorLine and use it
 
 	var vLineModifs = []interface{}{
-		amp.AMModifiers[0],	// exposure
-		amp.AMModifiers[2], // width of centerline goes as height of vectorline
-		amp.AMModifiers[3].(float64) - (amp.AMModifiers[1].(float64)) / 2.0 , // start X
-		amp.AMModifiers[4].(float64), // start Y
-		amp.AMModifiers[3].(float64) + (amp.AMModifiers[1].(float64)) / 2.0 , // // end X
-		amp.AMModifiers[4].(float64), // start Y
-		amp.AMModifiers[5], // rot
+		amp.AMModifiers[0],                                                // exposure
+		amp.AMModifiers[2],                                                // width of centerline goes as height of vectorline
+		amp.AMModifiers[3].(float64) - (amp.AMModifiers[1].(float64))/2.0, // start X
+		amp.AMModifiers[4].(float64),                                      // start Y
+		amp.AMModifiers[3].(float64) + (amp.AMModifiers[1].(float64))/2.0, // // end X
+		amp.AMModifiers[4].(float64),                                      // start Y
+		amp.AMModifiers[5],                                                // rot
 	}
 
-	var vLine = AMPrimitiveVectLine {AMPrimitive_VectLine, vLineModifs}
+	var vLine = AMPrimitiveVectLine{AMPrimitive_VectLine, vLineModifs}
 	vLine.Render(x0, y0, context)
 	return
 }
 func (amp AMPrimitiveCenterLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
-// TODO
+	BadMethod()
 }
 
-func (amp AMPrimitiveCenterLine) Init(scale float64) AMPrimitive {
+func (amp AMPrimitiveCenterLine) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
 		panic("unable to create aperture macro primitive center line - not enough parameters, have " +
 			strconv.Itoa(len(amp.AMModifiers)) + ", need 6")
 	}
 	for i := range amp.AMModifiers {
-		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i])
+		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
 		if i > 0 && i < 5 {
 			switch amp.AMModifiers[i].(type) {
 			case float64:
@@ -338,6 +385,16 @@ func (amp AMPrimitiveCenterLine) Init(scale float64) AMPrimitive {
 	}
 	return amp
 }
+
+func (amp AMPrimitiveCenterLine) Copy() AMPrimitive {
+	var modifStrings []interface{}
+	for i := range amp.AMModifiers {
+		modifStrings = append(modifStrings, amp.AMModifiers[i])
+	}
+	return NewAMPrimitive(AMPrimitive_CenterLine,modifStrings)
+}
+
+
 
 // ***************************************** OUTLINE *****************************************************
 type AMPrimitiveOutLine struct {
@@ -360,12 +417,13 @@ func (amp AMPrimitiveOutLine) String() string {
 }
 
 func (amp AMPrimitiveOutLine) Render(x0, y0 int, context *Render) {
-	numCoordPairs := int(convertToFloat(amp.AMModifiers[1])) + 1
-	rot := amp.AMModifiers[len(amp.AMModifiers) - 1].(float64)
+//	numCoordPairs := int(convertToFloat(amp.AMModifiers[1])) + 1
+	numCoordPairs := int(amp.AMModifiers[1].(float64)) + 1
+	rot := amp.AMModifiers[len(amp.AMModifiers)-1].(float64)
 	verticesX := make([]float64, 0)
 	verticesY := make([]float64, 0)
 	i := 2
-	for i < 2 + numCoordPairs * 2 {
+	for i < 2+numCoordPairs*2 {
 		verticesX = append(verticesX, amp.AMModifiers[i].(float64))
 		verticesY = append(verticesY, amp.AMModifiers[i+1].(float64))
 		i += 2
@@ -382,9 +440,10 @@ func (amp AMPrimitiveOutLine) Render(x0, y0 int, context *Render) {
 }
 
 func (amp AMPrimitiveOutLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
-	// TODO
+	BadMethod()
 
 }
+
 /*
 0		Exposure off/on (0/1)
 1		The number of vertices of the outline = the number of coordinate
@@ -400,9 +459,9 @@ func (amp AMPrimitiveOutLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 6+2n	Rotation angle, in degrees counterclockwise, a decimal.
 		The primitive is rotated around the origin of the macro definition, i.e. the
 		(0, 0) point of macro coordinates.
- */
-func (amp AMPrimitiveOutLine) Init(scale float64) AMPrimitive {
-	numCoordPairs := int(convertToFloat(amp.AMModifiers[1]))
+*/
+func (amp AMPrimitiveOutLine) Init(scale float64, params []float64) AMPrimitive {
+	numCoordPairs := int(convertToFloat(amp.AMModifiers[1], params))
 	if numCoordPairs < 3 {
 		panic("unable to create aperture macro primitive outline - not enough coordinate pairs, have " +
 			strconv.Itoa(numCoordPairs) + ", need at least 3")
@@ -415,8 +474,8 @@ func (amp AMPrimitiveOutLine) Init(scale float64) AMPrimitive {
 	numCoordPairs++
 
 	for i := range amp.AMModifiers {
-		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i])
-		if i > 2 && i < len(amp.AMModifiers) - 2 {
+		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
+		if i > 2 && i < len(amp.AMModifiers)-2 {
 			switch amp.AMModifiers[i].(type) {
 			case float64:
 				amp.AMModifiers[i] = scale * (amp.AMModifiers[i]).(float64)
@@ -426,6 +485,15 @@ func (amp AMPrimitiveOutLine) Init(scale float64) AMPrimitive {
 	}
 	return amp
 }
+
+func (amp AMPrimitiveOutLine) Copy() AMPrimitive {
+	var modifStrings []interface{}
+	for i := range amp.AMModifiers {
+		modifStrings = append(modifStrings, amp.AMModifiers[i])
+	}
+	return NewAMPrimitive(AMPRimitive_OutLine,modifStrings)
+}
+
 
 // ***************************************** POLYGON *****************************************************
 type AMPrimitivePolygon struct {
@@ -453,8 +521,8 @@ func (amp AMPrimitivePolygon) Render(x0, y0 int, context *Render) {
 	deltaPhi := rad2Deg((2 * math.Pi) / numVertices)
 	for i := 0; i < int(numVertices); i++ {
 		phi := float64(i) * deltaPhi
-		verticesX = append(verticesX, centerX + (dia / 2) * math.Cos(deg2Rad(phi)))
-		verticesY = append(verticesY, centerY + (dia / 2) * math.Sin(deg2Rad(phi)))
+		verticesX = append(verticesX, centerX+(dia/2)*math.Cos(deg2Rad(phi)))
+		verticesY = append(verticesY, centerY+(dia/2)*math.Sin(deg2Rad(phi)))
 	}
 	for i := range verticesX {
 		verticesX[i], verticesY[i], _ = RotatePoint(verticesX[i], verticesY[i], rot)
@@ -467,16 +535,16 @@ func (amp AMPrimitivePolygon) Render(x0, y0 int, context *Render) {
 }
 
 func (amp AMPrimitivePolygon) Draw(x0, y0 int, x1, y1 int, context *Render) {
-	// TODO
+	BadMethod()
 }
 
-func (amp AMPrimitivePolygon) Init(scale float64) AMPrimitive {
+func (amp AMPrimitivePolygon) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
 		panic("unable to create aperture macro primitive polygon - not enough parameters, have " +
 			strconv.Itoa(len(amp.AMModifiers)) + ", need 6")
 	}
 	for i := range amp.AMModifiers {
-		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i])
+		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
 		if i > 1 && i < 5 {
 			switch amp.AMModifiers[i].(type) {
 			case float64:
@@ -487,6 +555,15 @@ func (amp AMPrimitivePolygon) Init(scale float64) AMPrimitive {
 	}
 	return amp
 }
+
+func (amp AMPrimitivePolygon) Copy() AMPrimitive {
+	var modifStrings []interface{}
+	for i := range amp.AMModifiers {
+		modifStrings = append(modifStrings, amp.AMModifiers[i])
+	}
+	return NewAMPrimitive(AMPrimitive_Polygon,modifStrings)
+}
+
 
 // ***************************************** MOIRE *****************************************************
 type AMPrimitiveMoire struct {
@@ -504,19 +581,97 @@ func (amp AMPrimitiveMoire) String() string {
 }
 
 func (amp AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
-	// TODO
+	outerDia := amp.AMModifiers[2].(float64)
+	rThickness := amp.AMModifiers[3].(float64)
+	gap := amp.AMModifiers[4].(float64)
+	maxNumRings := int(amp.AMModifiers[5].(float64))
+	ringsCount := 0
+	ring := AMPrimitiveCircle{AMPrimitive_Circle, []interface{}{}}
+	for ringsCount < maxNumRings {
+		ring.AMModifiers = append(ring.AMModifiers, 1)                            // polarity
+		ring.AMModifiers = append(ring.AMModifiers, outerDia)                     // outer diameter
+		ring.AMModifiers = append(ring.AMModifiers, amp.AMModifiers[0].(float64)) // center X
+		ring.AMModifiers = append(ring.AMModifiers, amp.AMModifiers[1].(float64)) // center Y
+		ring.AMModifiers = append(ring.AMModifiers, amp.AMModifiers[8].(float64)) // rot
+		ring.AMModifiers = append(ring.AMModifiers, outerDia-2*rThickness)        // thickness of the donut
+		ring.Render(x0, y0, context)
+		ringsCount++
+		ring.AMModifiers = []interface{}{}
+		outerDia = outerDia - 2*(rThickness+gap)
+		if outerDia <= 0 {
+			break
+		}
+	}
+	xHairThickness := amp.AMModifiers[6].(float64)
+	xHairLen := amp.AMModifiers[7].(float64)
+	if (xHairThickness != 0) && (xHairLen != 0) {
+		vectLine := AMPrimitiveVectLine{AMPrimitive_VectLine, []interface{}{}}
+		//	"Exposure", "Width", "Start X", "Start Y", "End X", "End Y", "Rotation"
+		vectLine.AMModifiers = append(vectLine.AMModifiers, 1)                                       // polarity
+		vectLine.AMModifiers = append(vectLine.AMModifiers, xHairThickness)                          // width
+		vectLine.AMModifiers = append(vectLine.AMModifiers, amp.AMModifiers[0].(float64)-xHairLen/2) // start X
+		vectLine.AMModifiers = append(vectLine.AMModifiers, amp.AMModifiers[1].(float64))            // start Y
+		vectLine.AMModifiers = append(vectLine.AMModifiers, amp.AMModifiers[0].(float64)+xHairLen/2) // end x
+		vectLine.AMModifiers = append(vectLine.AMModifiers, amp.AMModifiers[1].(float64))            // end Y
+		vectLine.AMModifiers = append(vectLine.AMModifiers, amp.AMModifiers[8].(float64))            // rot
+		vectLine.Render(x0, y0, context)
+		vectLine.AMModifiers[2] = amp.AMModifiers[0].(float64)
+		vectLine.AMModifiers[3] = amp.AMModifiers[1].(float64) - xHairLen/2
+		vectLine.AMModifiers[4] = amp.AMModifiers[0].(float64)
+		vectLine.AMModifiers[5] = amp.AMModifiers[1].(float64) + xHairLen/2
+		vectLine.Render(x0, y0, context)
+	}
 	return
 }
 
 func (amp AMPrimitiveMoire) Draw(x0, y0 int, x1, y1 int, context *Render) {
-	// TODO
-
+	BadMethod()
 }
 
-func (amp AMPrimitiveMoire) Init(scale float64) AMPrimitive {
-	// TODO
+/*
+0	Center point X coordinate. A decimal.
+1	Center point Y coordinate. A decimal.
+2	Outer diameter of outer concentric ring. A decimal ≥ 0.
+3	Ring thickness. A decimal ≥ 0.
+4	Gap between rings. A decimal ≥ 0.
+5	Maximum number of rings. An integer ≥ 0.
+	The effective number of rings can be less if the center is reached. If
+	there is not enough space for the inner ring it becomes a full disc.
+6	Crosshair thickness. A decimal ≥ 0. If the thickness is zero there are
+	no rings.
+7	Crosshair length. A decimal ≥ 0. If the length is 0 there are no
+	crosshairs.
+8	Rotation angle, in degrees counterclockwise. A decimal.
+	The primitive is rotated around the origin of the macro definition, i.e. the
+	(0, 0) point of macro coordinates.
+*/
+
+func (amp AMPrimitiveMoire) Init(scale float64, params []float64) AMPrimitive {
+	if len(amp.AMModifiers) < 7 {
+		panic("unable to create aperture macro primitive moire - not enough parameters, have " +
+			strconv.Itoa(len(amp.AMModifiers)) + ", need 7")
+	}
+	for i := range amp.AMModifiers {
+		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
+		if i < 5 || (i > 5 && i < 8) {
+			switch amp.AMModifiers[i].(type) {
+			case float64:
+				amp.AMModifiers[i] = scale * (amp.AMModifiers[i]).(float64)
+			default:
+			}
+		}
+	}
 	return amp
 }
+
+func (amp AMPrimitiveMoire) Copy() AMPrimitive {
+	var modifStrings []interface{}
+	for i := range amp.AMModifiers {
+		modifStrings = append(modifStrings, amp.AMModifiers[i])
+	}
+	return NewAMPrimitive(AMPrimitive_Moire,modifStrings)
+}
+
 
 // ***************************************** THERMAL *****************************************************
 type AMPrimitiveThermal struct {
@@ -533,25 +688,157 @@ func (amp AMPrimitiveThermal) String() string {
 }
 
 func (amp AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
-	// TODO
+
+	rot := amp.AMModifiers[5].(float64)
+	innerRadius := amp.AMModifiers[3].(float64) / 2
+	gap := amp.AMModifiers[4].(float64)
+	phi0 := math.Asin((gap / 2) / innerRadius)
+	phi1 := (math.Pi / 2) - phi0
+	innerVerticesX, innerVerticesY := GetFirstQuadrantArc(innerRadius, phi0, phi1, context.PenWidth)
+	outerRadius := amp.AMModifiers[2].(float64) / 2
+	phi0 = math.Asin((gap / 2) / outerRadius)
+	phi1 = (math.Pi / 2) - phi0
+	outerVerticesX, outerVerticesY := GetFirstQuadrantArc(outerRadius, phi1, phi0, context.PenWidth)
+
+	verticesXI := make([]float64, 0)
+	verticesXI = append(verticesXI, *innerVerticesX...)
+	verticesXI = append(verticesXI, *outerVerticesX...)
+	verticesYI := make([]float64, 0)
+	verticesYI = append(verticesYI, *innerVerticesY...)
+	verticesYI = append(verticesYI, *outerVerticesY...)
+
+	// 2nd quadrant
+	verticesXII := []float64{}
+	verticesYII := []float64{}
+	for i := range verticesXI {
+		verticesXII = append(verticesXII, -verticesXI[i])
+		verticesYII = append(verticesYII, verticesYI[i])
+	}
+	// 3rd quadrant
+	verticesXIII := []float64{}
+	verticesYIII := []float64{}
+	for i := range verticesXII {
+		verticesXIII = append(verticesXIII, verticesXII[i])
+		verticesYIII = append(verticesYIII, -verticesYI[i])
+	}
+	// 4rd quadrant
+	verticesXIV := []float64{}
+	verticesYIV := []float64{}
+	for i := range verticesXII {
+		verticesXIV = append(verticesXIV, verticesXI[i])
+		verticesYIV = append(verticesYIV, verticesYIII[i])
+	}
+
+	cx := amp.AMModifiers[0].(float64)
+	cy := amp.AMModifiers[1].(float64)
+
+	for i := range verticesXI {
+		verticesXI[i] = verticesXI[i] + cx
+		verticesYI[i] = verticesYI[i] + cy
+		verticesXI[i], verticesYI[i], _ = RotatePoint(verticesXI[i], verticesYI[i], rot)
+		verticesXI[i] = float64(x0) + transformFloatCoord(verticesXI[i], context.XRes)
+		verticesYI[i] = float64(y0) + transformFloatCoord(verticesYI[i], context.YRes)
+	}
+	context.MovePen(x0, y0, int(verticesXI[0]), int(verticesYI[0]), context.MovePenColor)
+	context.RenderOutline(&verticesXI, &verticesYI)
+	context.MovePen(int(verticesXI[0]), int(verticesYI[0]), x0, y0, context.MovePenColor)
+
+	for i := range verticesXII {
+		verticesXII[i] = verticesXII[i] + cx
+		verticesYII[i] = verticesYII[i] + cy
+		verticesXII[i], verticesYII[i], _ = RotatePoint(verticesXII[i], verticesYII[i], rot)
+		verticesXII[i] = float64(x0) + transformFloatCoord(verticesXII[i], context.XRes)
+		verticesYII[i] = float64(y0) + transformFloatCoord(verticesYII[i], context.YRes)
+	}
+	context.MovePen(x0, y0, int(verticesXII[0]), int(verticesYII[0]), context.MovePenColor)
+	context.RenderOutline(&verticesXII, &verticesYII)
+	context.MovePen(int(verticesXII[0]), int(verticesYII[0]), x0, y0, context.MovePenColor)
+
+	for i := range verticesXIII {
+		verticesXIII[i] = verticesXIII[i] + cx
+		verticesYIII[i] = verticesYIII[i] + cy
+		verticesXIII[i], verticesYIII[i], _ = RotatePoint(verticesXIII[i], verticesYIII[i], rot)
+		verticesXIII[i] = float64(x0) + transformFloatCoord(verticesXIII[i], context.XRes)
+		verticesYIII[i] = float64(y0) + transformFloatCoord(verticesYIII[i], context.YRes)
+	}
+	context.MovePen(x0, y0, int(verticesXIII[0]), int(verticesYIII[0]), context.MovePenColor)
+	context.RenderOutline(&verticesXIII, &verticesYIII)
+	context.MovePen(int(verticesXIII[0]), int(verticesYIII[0]), x0, y0, context.MovePenColor)
+
+	for i := range verticesXIV {
+		verticesXIV[i] = verticesXIV[i] + cx
+		verticesYIV[i] = verticesYIV[i] + cy
+		verticesXIV[i], verticesYIV[i], _ = RotatePoint(verticesXIV[i], verticesYIV[i], rot)
+		verticesXIV[i] = float64(x0) + transformFloatCoord(verticesXIV[i], context.XRes)
+		verticesYIV[i] = float64(y0) + transformFloatCoord(verticesYIV[i], context.YRes)
+	}
+	context.MovePen(x0, y0, int(verticesXIV[0]), int(verticesYIV[0]), context.MovePenColor)
+	context.RenderOutline(&verticesXIV, &verticesYIV)
+	context.MovePen(int(verticesXIV[0]), int(verticesYIV[0]), x0, y0, context.MovePenColor)
+
 	return
 }
 
 func (amp AMPrimitiveThermal) Draw(x0, y0 int, x1, y1 int, context *Render) {
-	// TODO
+	BadMethod()
 
 }
 
-func (amp AMPrimitiveThermal) Init(scale float64) AMPrimitive {
-	// TODO
+/*
+0	Center point X coordinate. A decimal.
+1	Center point Y coordinate. A decimal.
+2	Outer diameter. A decimal > inner diameter
+3	Inner diameter. A decimal ≥ 0
+4	Gap thickness. A decimal < (outer diameter)/√2.
+	The gaps are on the X and Y axes through the center without
+	rotation. They rotate with the primitive.
+	Note that if the (gap thickness)*√2 ≥ (inner diameter) the inner circle
+	disappears. This is not invalid.
+5	Rotation angle, in degrees counterclockwise. A decimal.
+	The primitive is rotated around the origin of the macro definition, i.e.
+	(0, 0) point of macro coordinates.
+*/
+func (amp AMPrimitiveThermal) Init(scale float64, params []float64) AMPrimitive {
+	if len(amp.AMModifiers) < 6 {
+		panic("unable to create aperture macro primitive thermal - not enough parameters, have " +
+			strconv.Itoa(len(amp.AMModifiers)) + ", need 6")
+	}
+	for i := range amp.AMModifiers {
+		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
+		if i < 5 {
+			switch amp.AMModifiers[i].(type) {
+			case float64:
+				amp.AMModifiers[i] = scale * (amp.AMModifiers[i]).(float64)
+			default:
+			}
+		}
+	}
 	return amp
 }
+
+func (amp AMPrimitiveThermal) Copy() AMPrimitive {
+	var modifStrings []interface{}
+	for i := range amp.AMModifiers {
+		modifStrings = append(modifStrings, amp.AMModifiers[i])
+	}
+	return NewAMPrimitive(AMPrimitive_Thermal,modifStrings)
+}
+
 
 // ********************************************* AM container *************************************************
 type AMVariable struct {
 	Name           string
 	Value          string
 	PrimitiveIndex int
+}
+
+
+func (amv AMVariable) Copy() AMVariable {
+	var retVal AMVariable
+	copy([]byte(retVal.Name), []byte(amv.Name))
+	copy([]byte(retVal.Value), []byte(amv.Value))
+	retVal.PrimitiveIndex = amv.PrimitiveIndex
+	return retVal
 }
 
 func (amv AMVariable) String() string {
@@ -564,6 +851,22 @@ type ApertureMacro struct {
 	Variables  []AMVariable
 	Primitives []AMPrimitive
 }
+
+func (am ApertureMacro) Copy() ApertureMacro {
+	var retVal ApertureMacro
+	retVal.Name = "" + am.Name
+	for i := range am.Comments {
+		retVal.Comments = append(retVal.Comments, am.Comments[i])
+	}
+	for i := range am.Variables {
+		retVal.Variables = append(retVal.Variables, am.Variables[i].Copy())
+	}
+	for i := range am.Primitives {
+		retVal.Primitives = append(retVal.Primitives, am.Primitives[i].Copy())
+	}
+	return retVal
+}
+
 
 func (am ApertureMacro) String() string {
 	retVal := "\nAperture macro name:\t" + am.Name + "\nComments:\n"
@@ -643,20 +946,18 @@ func (am ApertureMacro) Render(x0, y0 int, context *Render) {
 	for i := range am.Primitives {
 		am.Primitives[i].Render(x0, y0, context)
 	}
-
 	return
 }
 
-func (am ApertureMacro) Draw(x0, y0 int, x1, y1 int,  context *Render) {
+func (am ApertureMacro) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 	for i := range am.Primitives {
-		am.Primitives[i].Draw(x0, y0, x1, y1,  context)
+		am.Primitives[i].Draw(x0, y0, x1, y1, context)
 	}
-
 	return
 }
 
-func (am ApertureMacro) Init(scale float64) ApertureMacro {
+func (am ApertureMacro) Init(scale float64, params []float64) ApertureMacro {
 	return am
 }
 
@@ -746,12 +1047,15 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 		}
 	}
 	commaPos := strings.Index(apString[i:], ",")
+	code, _ := strconv.Atoi(apString[:i])
+	var def = ""
 	if commaPos == -1 {
 		commaPos = len(apString[i:])
+	} else {
+		def = apString[commaPos+i+1:]
 	}
-	code, _ := strconv.Atoi(apString[:i])
 	name := apString[i : commaPos+i]
-	def := apString[commaPos+i:]
+
 	retVal := new(Aperture)
 	if len(name) == 0 {
 		panic("bad aperture " + strconv.Itoa(code) + " name")
@@ -768,16 +1072,28 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 		retVal.Type = AptypeMacro
 		retVal.Code = code
 		// find in macro definitions dictionary for the name
-
+// TODO Parse def
 		var instance ApertureMacro
+		params := make([]string, 0)
+		if len(def) != 0 {
+			params = strings.Split(def,"X")
+		}
+		ParamsF := make([]float64, 0)
+		for i := range params {
+			flP, err := strconv.ParseFloat(params[i], 64)
+			if err != nil {
+				panic("non-number value found in macro parameters")
+			}
+			ParamsF = append(ParamsF, flP)
+		}
+
 		for j := range AMacroDict {
 			if strings.Compare(AMacroDict[j].Name, name) == 0 {
-				instance = ApertureMacro{AMacroDict[j].Name,
-					AMacroDict[j].Comments,
-					AMacroDict[j].Variables,
-					AMacroDict[j].Primitives}
+
+				instance = AMacroDict[j].Copy()
+
 				for k := 0; k < len(instance.Primitives); k++ {
-					instance.Primitives[k] = instance.Primitives[k].Init(scale)
+					instance.Primitives[k] = instance.Primitives[k].Init(scale, ParamsF)
 				}
 				break
 			}
@@ -895,19 +1211,31 @@ func (apert *Aperture) Init2(code int, name string, def string, scale float64) e
 	return err
 }
 
-
-func convertToFloat(arg interface{}) float64 {
+func convertToFloat(arg interface{}, params []float64) float64 {
 	panicString1 := "convertToFloat(arg interface{}) float64 - variables not implemented"
 	panicString2 := "convertToFloat(arg interface{}) float64 - not supported interface{}"
+	panicString3 := "convertToFloat(arg interface{}) float64 - variable has bad name: "
 	switch arg.(type) {
 	case float64:
 		return arg.(float64)
 	case string:
-		retVal, err := strconv.ParseFloat(arg.(string), 64)
-		if err != nil {
-			panic(panicString1)
+		if strings.HasPrefix(arg.(string), "$") == true {
+			varNum, err := strconv.Atoi(arg.(string)[1:])
+			if err != nil {
+				panic(panicString3 + arg.(string))
+			}
+			if len (params) >= varNum {
+				return params[varNum-1]
+			} else {
+				return 0
+			}
+		} else {
+			retVal, err := strconv.ParseFloat(arg.(string), 64)
+			if err != nil {
+				panic(panicString1)
+			}
+			return retVal
 		}
-		return retVal
 	case int:
 		return float64(arg.(int))
 	default:
@@ -928,23 +1256,78 @@ func band(arg, bandVal float64) float64 {
 // rotates the point(x0,y0) counter-clockwise by phi degrees
 func RotatePoint(x0, y0, phi float64) (x1, y1 float64, phi1 float64) {
 
-	phiRad := deg2Rad(phi)
+	if x0 != 0 || y0 != 0 {
+		phiRad := deg2Rad(phi)
 
-	phi0, r := GetAngle(x0, y0)
-	phi1 = phi0 + phiRad
-	x1 = r * math.Cos(phi1)
-	y1 = r * math.Sin(phi1)
-
+		phi0, r := GetAngle(x0, y0)
+		phi1 = phi0 + phiRad
+		x1 = r * math.Cos(phi1)
+		y1 = r * math.Sin(phi1)
+	} else {
+		x1 = x0
+		y1 = y0
+		phi1 = phi
+	}
 	return x1, y1, phi1
 }
 
 // returns angle between hyp and x side
 func GetAngle(x, y float64) (angle float64, hyp float64) {
 	hyp = math.Hypot(x, y)
-	cosPhi := band(x / hyp, 1.0)
+	cosPhi := band(x/hyp, 1.0)
 	angle = math.Acos(cosPhi)
 	if y < 0 {
-		angle = math.Pi *2  - angle
+		angle = math.Pi*2 - angle
 	}
 	return angle, hyp
+}
+
+// returns an 1st quadrant arc
+// arcStep - length of a segment of interpolated arc
+func GetFirstQuadrantArc(r, phi0, phi1, arcStep float64) (vertX *[]float64, vertY *[]float64) {
+
+	pointsX := make([]float64, 0)
+	pointsY := make([]float64, 0)
+	phiStep := arcStep / r
+	if phi0 > phi1 {
+		phiStep = -phiStep
+	}
+	nSteps := int(math.Round(math.Abs(phi0-phi1) / math.Abs(phiStep)))
+	for nSteps > 0 {
+		pointsX = append(pointsX, r*math.Cos(phi0))
+		pointsY = append(pointsY, r*math.Sin(phi0))
+		phi0 += phiStep
+		nSteps--
+	}
+	return &pointsX, &pointsY
+
+}
+
+func SetParams(primitives *[]AMPrimitive, params []float64) {
+	for i := range *primitives {
+		switch (*primitives)[i].(type) {
+		case AMPrimitiveComment:
+			print((*primitives)[i].(AMPrimitiveComment).AMModifiers)
+		case AMPrimitiveCircle:
+			print((*primitives)[i].(AMPrimitiveCircle).AMModifiers)
+		case AMPrimitiveVectLine:
+			print((*primitives)[i].(AMPrimitiveVectLine).AMModifiers)
+		case AMPrimitiveCenterLine:
+			print((*primitives)[i].(AMPrimitiveCenterLine).AMModifiers)
+		case AMPrimitiveOutLine:
+			print((*primitives)[i].(AMPrimitiveOutLine).AMModifiers)
+		case AMPrimitivePolygon:
+			print((*primitives)[i].(AMPrimitivePolygon).AMModifiers)
+		case AMPrimitiveMoire:
+			print((*primitives)[i].(AMPrimitiveMoire).AMModifiers)
+		case AMPrimitiveThermal:
+			print((*primitives)[i].(AMPrimitiveThermal).AMModifiers)
+		default:
+			panic("SetParams: wrong type switch argument")
+		}
+	}
+}
+
+func BadMethod() {
+	panic("the macro aperture can not be used to DRAW (D01*)")
 }
