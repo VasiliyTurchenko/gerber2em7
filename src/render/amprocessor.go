@@ -51,7 +51,7 @@ func NewAMPrimitive(amp AMPrimitiveType, modifStrings []interface{}) AMPrimitive
 	case AMPrimitive_Moire:
 		return AMPrimitiveMoire{AMPrimitive_Moire, modifStrings}
 	case AMPrimitive_Thermal:
-		return AMPrimitiveThermal{amp, modifStrings}
+		return AMPrimitiveThermal{AMPrimitive_Thermal, modifStrings}
 	default:
 		panic("unknown aperture macro primitive type")
 	}
@@ -126,7 +126,7 @@ func (amp AMPrimitiveComment) Copy() AMPrimitive {
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
 	}
-	return NewAMPrimitive(AMPrimitive_Comment,modifStrings)
+	return NewAMPrimitive(AMPrimitive_Comment, modifStrings)
 }
 
 // ********************************************* CIRCLE *********************************************************
@@ -157,7 +157,7 @@ func (amp AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
 	//xC := amp.cirCX + x0
 	//yC := amp.cirCY + y0
 	context.MovePen(x0, y0, xC, yC, context.MovePenColor)
-//	context.DrawDonut(xC, yC, amp.cirD, amp.cirHD, context.ApColor)
+	//	context.DrawDonut(xC, yC, amp.cirD, amp.cirHD, context.ApColor)
 	context.DrawDonut(xC, yC, d, hd, context.ApColor)
 	// go back
 	context.MovePen(xC, yC, x0, y0, context.MovePenColor)
@@ -219,9 +219,8 @@ func (amp AMPrimitiveCircle) Copy() AMPrimitive {
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
 	}
-	return NewAMPrimitive(AMPrimitive_Circle,modifStrings)
+	return NewAMPrimitive(AMPrimitive_Circle, modifStrings)
 }
-
 
 // ***************************************** VECTOR LINE *****************************************************
 type AMPrimitiveVectLine struct {
@@ -305,7 +304,7 @@ func (amp AMPrimitiveVectLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	BadMethod()
 }
 
-func (amp AMPrimitiveVectLine) Init(scale float64,  params []float64) AMPrimitive {
+func (amp AMPrimitiveVectLine) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 7 {
 		panic("unable to create aperture macro primitive vector line - not enough parameters, have " +
 			strconv.Itoa(len(amp.AMModifiers)) + ", need 7")
@@ -328,9 +327,8 @@ func (amp AMPrimitiveVectLine) Copy() AMPrimitive {
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
 	}
-	return NewAMPrimitive(AMPrimitive_VectLine,modifStrings)
+	return NewAMPrimitive(AMPrimitive_VectLine, modifStrings)
 }
-
 
 // ***************************************** CENTER LINE *****************************************************
 type AMPrimitiveCenterLine struct {
@@ -391,10 +389,8 @@ func (amp AMPrimitiveCenterLine) Copy() AMPrimitive {
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
 	}
-	return NewAMPrimitive(AMPrimitive_CenterLine,modifStrings)
+	return NewAMPrimitive(AMPrimitive_CenterLine, modifStrings)
 }
-
-
 
 // ***************************************** OUTLINE *****************************************************
 type AMPrimitiveOutLine struct {
@@ -417,7 +413,7 @@ func (amp AMPrimitiveOutLine) String() string {
 }
 
 func (amp AMPrimitiveOutLine) Render(x0, y0 int, context *Render) {
-//	numCoordPairs := int(convertToFloat(amp.AMModifiers[1])) + 1
+	//	numCoordPairs := int(convertToFloat(amp.AMModifiers[1])) + 1
 	numCoordPairs := int(amp.AMModifiers[1].(float64)) + 1
 	rot := amp.AMModifiers[len(amp.AMModifiers)-1].(float64)
 	verticesX := make([]float64, 0)
@@ -491,9 +487,8 @@ func (amp AMPrimitiveOutLine) Copy() AMPrimitive {
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
 	}
-	return NewAMPrimitive(AMPRimitive_OutLine,modifStrings)
+	return NewAMPrimitive(AMPRimitive_OutLine, modifStrings)
 }
-
 
 // ***************************************** POLYGON *****************************************************
 type AMPrimitivePolygon struct {
@@ -561,9 +556,8 @@ func (amp AMPrimitivePolygon) Copy() AMPrimitive {
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
 	}
-	return NewAMPrimitive(AMPrimitive_Polygon,modifStrings)
+	return NewAMPrimitive(AMPrimitive_Polygon, modifStrings)
 }
-
 
 // ***************************************** MOIRE *****************************************************
 type AMPrimitiveMoire struct {
@@ -669,9 +663,8 @@ func (amp AMPrimitiveMoire) Copy() AMPrimitive {
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
 	}
-	return NewAMPrimitive(AMPrimitive_Moire,modifStrings)
+	return NewAMPrimitive(AMPrimitive_Moire, modifStrings)
 }
-
 
 // ***************************************** THERMAL *****************************************************
 type AMPrimitiveThermal struct {
@@ -821,9 +814,8 @@ func (amp AMPrimitiveThermal) Copy() AMPrimitive {
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
 	}
-	return NewAMPrimitive(AMPrimitive_Thermal,modifStrings)
+	return NewAMPrimitive(AMPrimitive_Thermal, modifStrings)
 }
-
 
 // ********************************************* AM container *************************************************
 type AMVariable struct {
@@ -832,11 +824,10 @@ type AMVariable struct {
 	PrimitiveIndex int
 }
 
-
 func (amv AMVariable) Copy() AMVariable {
 	var retVal AMVariable
-	copy([]byte(retVal.Name), []byte(amv.Name))
-	copy([]byte(retVal.Value), []byte(amv.Value))
+	retVal.Name = "" + amv.Name
+	retVal.Value = "" + amv.Value
 	retVal.PrimitiveIndex = amv.PrimitiveIndex
 	return retVal
 }
@@ -866,7 +857,6 @@ func (am ApertureMacro) Copy() ApertureMacro {
 	}
 	return retVal
 }
-
 
 func (am ApertureMacro) String() string {
 	retVal := "\nAperture macro name:\t" + am.Name + "\nComments:\n"
@@ -1072,11 +1062,11 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 		retVal.Type = AptypeMacro
 		retVal.Code = code
 		// find in macro definitions dictionary for the name
-// TODO Parse def
+		// TODO Parse def
 		var instance ApertureMacro
 		params := make([]string, 0)
 		if len(def) != 0 {
-			params = strings.Split(def,"X")
+			params = strings.Split(def, "X")
 		}
 		ParamsF := make([]float64, 0)
 		for i := range params {
@@ -1220,11 +1210,13 @@ func convertToFloat(arg interface{}, params []float64) float64 {
 		return arg.(float64)
 	case string:
 		if strings.HasPrefix(arg.(string), "$") == true {
+// TODO Calculator
+
 			varNum, err := strconv.Atoi(arg.(string)[1:])
 			if err != nil {
 				panic(panicString3 + arg.(string))
 			}
-			if len (params) >= varNum {
+			if len(params) >= varNum {
 				return params[varNum-1]
 			} else {
 				return 0
@@ -1301,31 +1293,6 @@ func GetFirstQuadrantArc(r, phi0, phi1, arcStep float64) (vertX *[]float64, vert
 	}
 	return &pointsX, &pointsY
 
-}
-
-func SetParams(primitives *[]AMPrimitive, params []float64) {
-	for i := range *primitives {
-		switch (*primitives)[i].(type) {
-		case AMPrimitiveComment:
-			print((*primitives)[i].(AMPrimitiveComment).AMModifiers)
-		case AMPrimitiveCircle:
-			print((*primitives)[i].(AMPrimitiveCircle).AMModifiers)
-		case AMPrimitiveVectLine:
-			print((*primitives)[i].(AMPrimitiveVectLine).AMModifiers)
-		case AMPrimitiveCenterLine:
-			print((*primitives)[i].(AMPrimitiveCenterLine).AMModifiers)
-		case AMPrimitiveOutLine:
-			print((*primitives)[i].(AMPrimitiveOutLine).AMModifiers)
-		case AMPrimitivePolygon:
-			print((*primitives)[i].(AMPrimitivePolygon).AMModifiers)
-		case AMPrimitiveMoire:
-			print((*primitives)[i].(AMPrimitiveMoire).AMModifiers)
-		case AMPrimitiveThermal:
-			print((*primitives)[i].(AMPrimitiveThermal).AMModifiers)
-		default:
-			panic("SetParams: wrong type switch argument")
-		}
-	}
 }
 
 func BadMethod() {

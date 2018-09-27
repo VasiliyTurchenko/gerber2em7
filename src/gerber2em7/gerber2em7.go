@@ -41,7 +41,7 @@ var (
 	gerberStrings *stor.Storage
 
 	// plotter instance which is responsible for generating the command stream for the target device
-	plotterInstance *plotter.Plotter
+	plotterInstance *plotter.PlotterParams
 
 	// array of steps to be executed to generate PCB
 	arrayOfSteps []*render.State
@@ -120,7 +120,9 @@ func Main() {
 
 	// search for format definition strings
 	mo, err := searchMO(gerberStrings)
-	checkError(err, 300)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	fs, err := searchFS(gerberStrings)
 	checkError(err, 301)
@@ -401,7 +403,7 @@ func Main() {
 
 // search for format strings
 func searchMO(storage *stor.Storage) (string, error) {
-	err := errors.New("unit of measurements command not found")
+	err := errors.New("unit of measurements command not found - MOIN used by default")
 	storage.ResetPos()
 	//	for _, s := range gerberStrings {
 	s := storage.String()
@@ -418,7 +420,7 @@ func searchMO(storage *stor.Storage) (string, error) {
 		}
 		s = storage.String()
 	}
-	return "", err
+	return GerberMOIN, err
 }
 
 func searchFS(storage *stor.Storage) (string, error) {

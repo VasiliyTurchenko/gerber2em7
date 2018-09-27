@@ -45,7 +45,7 @@ type Render struct {
 	// setPoint size in terms of real plotter pen points
 	PointSize  float64
 	PointSizeI int
-	Plt        *plotter.Plotter
+	Plt        *plotter.PlotterParams
 	// pcb properties
 	MinX float64
 	MinY float64
@@ -84,13 +84,13 @@ type Render struct {
 	PolygonPtr *Polygon
 }
 
-func NewRender(plotter *plotter.Plotter, viper *viper.Viper, minX, minY, maxX, maxY float64) *Render {
+func NewRender(plotter *plotter.PlotterParams, viper *viper.Viper, minX, minY, maxX, maxY float64) *Render {
 	retVal := new(Render)
 	retVal.Init(plotter, viper, minX, minY, maxX, maxY)
 	return retVal
 }
 
-func (rc *Render) Init(plt *plotter.Plotter, viper *viper.Viper, minX, minY, maxX, maxY float64) {
+func (rc *Render) Init(plt *plotter.PlotterParams, viper *viper.Viper, minX, minY, maxX, maxY float64) {
 	// physical plotter single step size
 	rc.XRes = viper.GetFloat64(configurator.CfgPlotterXRes)
 	rc.YRes = viper.GetFloat64(configurator.CfgPlotterYRes)

@@ -14,7 +14,7 @@ import (
 /*
 	Plotter current status and statistic
 */
-type Plotter struct {
+type PlotterParams struct {
 	selectPenCmds   int
 	dropPenCmds     int
 	raisePenCmds    int
@@ -27,16 +27,45 @@ type Plotter struct {
 	outStringBuffer []string
 }
 
-func NewPlotter() *Plotter {
-	retVal := new(Plotter)
+func NewPlotter() *PlotterParams {
+	retVal := new(PlotterParams)
 	retVal.Init()
 	return retVal
+}
+
+type Plotter interface {
+
+	// Initializes plotter by setting up the commands
+	InitCommands() error
+
+	//
+	Start() string
+
+	// Stops the plotter
+	Stop() string
+
+	// moves the tool to position
+	MoveTo(x, y int) string
+
+	// draws a line
+	DrawLine(x0, y0, x1, y1 int) string
+
+	// draws a circle
+	Circle(xc, yc, r int) string
+
+	// draws an arc
+	Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm IPmode) string
+
+	// takes a pen
+	TakePen(penNumber int) string
+
+
 }
 
 /*
 	Initializes Plotter object and generates plotter reset command
 */
-func (plotter *Plotter) Init() string {
+func (plotter *PlotterParams) Init() string {
 	plotter.currentPosX = 0
 	plotter.currentPosY = 0
 	plotter.outStringBuffer = make([]string, 0)
@@ -45,14 +74,14 @@ func (plotter *Plotter) Init() string {
 	return retVal
 }
 
-func (plotter *Plotter) SetOutFileName(outFileName string) {
+func (plotter *PlotterParams) SetOutFileName(outFileName string) {
 	plotter.outFileName = outFileName
 }
 
 /*
 	Deletes unnecessary MA commands
 */
-func (plotter *Plotter) squeeze() {
+func (plotter *PlotterParams) squeeze() {
 	tmpString := make([]string, 0)
 	var lastMA string
 	for a := range plotter.outStringBuffer {
@@ -72,7 +101,7 @@ func (plotter *Plotter) squeeze() {
 /*
 	Finalizes command stream and writes file to disk
 */
-func (plotter *Plotter) Stop() {
+func (plotter *PlotterParams) Stop() {
 	_ = plotter.TakePen(0)
 	_ = plotter.MoveTo(0, 0)
 	plotter.squeeze()
@@ -100,13 +129,13 @@ func (plotter *Plotter) Stop() {
 	return
 }
 
-func (plotter *Plotter) MoveTo(x, y int) string {
+func (plotter *PlotterParams) MoveTo(x, y int) string {
 	retVal := plotter.moveTo(x, y)
 	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
 	return retVal
 }
 
-func (plotter *Plotter) moveTo(x, y int) string {
+func (plotter *PlotterParams) moveTo(x, y int) string {
 	var retVal string
 	plotter.currentPosX = x
 	plotter.currentPosY = y
@@ -114,7 +143,7 @@ func (plotter *Plotter) moveTo(x, y int) string {
 	return retVal
 }
 
-func (plotter *Plotter) DrawLine(x0, y0, x1, y1 int) string {
+func (plotter *PlotterParams) DrawLine(x0, y0, x1, y1 int) string {
 	var retVal string
 	if (plotter.currentPosX != x0) || (plotter.currentPosY != y0) {
 		//		fmt.Println("Draw line. Position discrepance detected!")
@@ -128,7 +157,7 @@ func (plotter *Plotter) DrawLine(x0, y0, x1, y1 int) string {
 	return retVal
 }
 
-func (plotter *Plotter) Circle(xc, yc, r int) string {
+func (plotter *PlotterParams) Circle(xc, yc, r int) string {
 	retVal := plotter.moveTo(xc+r, yc) // move to the rightmost circle point
 	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
 	retVal = "D C" + strconv.Itoa(r) + " , 0 , 360\n"
@@ -138,7 +167,7 @@ func (plotter *Plotter) Circle(xc, yc, r int) string {
 	return retVal
 }
 
-func (plotter *Plotter) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm IPmode) string {
+func (plotter *PlotterParams) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm IPmode) string {
 	var retVal string
 	if (plotter.currentPosX != x0) || (plotter.currentPosY != y0) {
 		fmt.Println("Arc. Position discrepance detected!")
@@ -158,7 +187,7 @@ func (plotter *Plotter) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm IPmode) st
 
 }
 
-func (plotter *Plotter) TakePen(penNumber int) string {
+func (plotter *PlotterParams) TakePen(penNumber int) string {
 	if penNumber < 0 || penNumber > 4 {
 		panic("Bad pen number specified!")
 	}
