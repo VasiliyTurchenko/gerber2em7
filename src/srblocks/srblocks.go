@@ -5,6 +5,7 @@ package srblocks
 
 import (
 	"errors"
+	"hash/fnv"
 	"strconv"
 	"strings"
 	. "xy"
@@ -15,6 +16,7 @@ import (
 */
 type SRBlock struct {
 	srString string
+	srId	 string
 	numX     int
 	numY     int
 	dX       float64
@@ -29,10 +31,11 @@ func (srblock *SRBlock) String() string {
 	}
 	return "Step and repeat block:\n" +
 		"\tsource string: " + srblock.srString + "\n" +
-		"\tcontains " + strconv.Itoa(srblock.numX) + " repeats along X axis and " + strconv.Itoa(srblock.numY) + " repeats along Y axis\n" +
+		"\thash Id: " + srblock.srId + "\n" +
+		"\tcontains " + strconv.Itoa(srblock.numX) + " repetition(s) along X axis and " + strconv.Itoa(srblock.numY) + " repetition(s) along Y axis\n" +
 		"\tnumber of steps in each repetition: " + strconv.Itoa(srblock.nSteps) + "\n" +
 		"\tdX=" + strconv.FormatFloat(srblock.dX, 'f', 5, 64) +
-		", dy=" + strconv.FormatFloat(srblock.dX, 'f', 5, 64) + "\n"
+		", dy=" + strconv.FormatFloat(srblock.dY, 'f', 5, 64) + "\n"
 }
 
 func (srblock *SRBlock) NumX() int {
@@ -79,6 +82,11 @@ func (srblock *SRBlock) Init(ins string, fs *FormatSpec) error {
 	srblock.dX = res['I'] * fs.ReadMU() // take into account inches or millimeters
 	srblock.dY = res['J'] * fs.ReadMU()
 	srblock.srString = ins
+
+	hs := ins + strconv.Itoa(srblock.numX) + strconv.Itoa(srblock.numY) + strconv.FormatFloat(srblock.dX,'f', 5, 64) + strconv.FormatFloat(srblock.dY,'f', 5, 64)
+	h := fnv.New32a()
+	h.Write([]byte(hs))
+	srblock.srId = strconv.FormatInt(int64(h.Sum32()), 10)
 	return nil
 }
 

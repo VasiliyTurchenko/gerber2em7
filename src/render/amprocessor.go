@@ -2,6 +2,7 @@
 package render
 
 import (
+	"calculator"
 	"errors"
 	"fmt"
 	. "gerberbasetypes"
@@ -900,7 +901,7 @@ func NewApertureMacro(src string) (*ApertureMacro, error) {
 				return retVal, errors.New("problem with variable: " + s)
 			}
 			prIndex := len(retVal.Primitives)
-			retVal.Variables = append(retVal.Variables, AMVariable{s[1:eqSignPos], s[eqSignPos+1:], prIndex})
+			retVal.Variables = append(retVal.Variables, AMVariable{s[:eqSignPos], s[eqSignPos+1:], prIndex})
 
 			continue
 		}
@@ -1054,6 +1055,7 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 		// it's ordinary aperture
 		err := retVal.Init2(code, name, def, scale)
 		if err != nil {
+			fmt.Println(name + def)
 			panic(err)
 		}
 
@@ -1083,6 +1085,25 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 				instance = AMacroDict[j].Copy()
 
 				for k := 0; k < len(instance.Primitives); k++ {
+					for n := range instance.Variables {
+						// have to recalc variables before initializing next primitive
+						if instance.Variables[n].PrimitiveIndex == k {
+							varStorage := make (map[string]float64)
+							for i, pf := range ParamsF {
+								varStorage["$"+strconv.Itoa(i+1)] = pf
+							}
+							varIndex, err := strconv.Atoi(instance.Variables[n].Name[1:])
+							if err != nil {
+								panic("bad variable name: " + instance.Variables[n].Name)
+							}
+							addParamsF := varIndex - len(ParamsF)
+							for addParamsF > 0 {
+								ParamsF = append(ParamsF, 0.0)
+								addParamsF--
+							}
+							ParamsF[varIndex-1] = calculator.CalcExpression(instance.Variables[n].Value,&varStorage)
+						}
+					}
 					instance.Primitives[k] = instance.Primitives[k].Init(scale, ParamsF)
 				}
 				break
@@ -1108,9 +1129,14 @@ func (apert *Aperture) Init2(code int, name string, def string, scale float64) e
 	apert.Code = code
 
 	var tmpVal float64
-	tmpSplitted := strings.Split(def[1:], "X")
-	for j := range tmpSplitted {
-		tmpSplitted[j] = strings.TrimSpace(tmpSplitted[j])
+	var tmpSplitted []string
+	if strings.Contains(def[1:], "X") == true {
+		tmpSplitted = strings.Split(def, "X")
+		for j := range tmpSplitted {
+			tmpSplitted[j] = strings.TrimSpace(tmpSplitted[j])
+		}
+	} else {
+		tmpSplitted = append(tmpSplitted, def)
 	}
 	switch name[0] {
 	case 'C':
@@ -1209,8 +1235,19 @@ func convertToFloat(arg interface{}, params []float64) float64 {
 	case float64:
 		return arg.(float64)
 	case string:
-		if strings.HasPrefix(arg.(string), "$") == true {
-// TODO Calculator
+		if strings.Contains(arg.(string), "$") == true {
+			// detect expression
+			if strings.IndexAny(arg.(string), "+-xX/") != -1 {
+				// there is an expression
+				varStorage := make (map[string]float64)
+				for i, f := range params {
+					varStorage["$"+ strconv.Itoa(i+1)]  = f
+				}
+				// calculate
+				retVal := calculator.CalcExpression(arg.(string), &varStorage)
+				//
+				return retVal
+			}
 
 			varNum, err := strconv.Atoi(arg.(string)[1:])
 			if err != nil {

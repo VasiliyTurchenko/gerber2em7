@@ -4,7 +4,6 @@
 package render
 
 import (
-
 	"container/list"
 	"errors"
 	"fmt"
@@ -17,8 +16,6 @@ import (
 	. "xy"
 )
 
-
-
 /*
 	The State object represents the state of the state machine before processing
 	the state.
@@ -29,7 +26,7 @@ type State struct {
 	Polarity    PolType // %LPD*% or %LPC*%
 	QMode       QuadMode
 	CurrentAp   *Aperture // aperture code
-	IpMode      IPmode              // interpolation mode
+	IpMode      IPmode    // interpolation mode
 	PrevCoord   *XY
 	Coord       *XY
 	Action      ActType
@@ -171,6 +168,19 @@ func (step *State) CreateStep(
 	case strings.HasSuffix(*inString, "D03*"):
 		step.Action = OpcodeD03_FLASH
 	}
+
+	// implicit draw
+
+	if strings.HasSuffix(*inString, "D01*") == false &&
+		strings.HasSuffix(*inString, "D02*") == false &&
+		strings.HasSuffix(*inString, "D03*") == false &&
+		strings.HasSuffix(*inString, "*") == true &&
+		(strings.HasPrefix(*inString, "X") || strings.HasPrefix(*inString, "Y")) {
+		fmt.Println("Warning! Implicit DRAW command found in " + *inString)
+		step.Action = OpcodeD01_DRAW
+		*inString = strings.TrimSuffix(*inString, "*") + "D01*"
+	}
+
 	if strings.HasSuffix(
 		*inString, "D01*") || strings.HasSuffix(
 		*inString, "D02*") || strings.HasSuffix(
@@ -221,8 +231,16 @@ func (step *State) CreateStep(
 			}
 		}
 		if step.CurrentAp == nil {
-			checkError(errors.New("the aperture "+strconv.Itoa(tc) + " does not exist"), 502)
+			checkError(errors.New("the aperture "+strconv.Itoa(tc)+" does not exist"), 502)
 		}
+		return SCResultNextString
+	}
+
+	// + 28-09-2018
+	if strings.HasPrefix(s, "%SRX1Y1I0") {
+		fmt.Println("Step and repeat block ends (%SRX1Y1I0..) at line", i)
+		fmt.Println(step.SRBlock.String())
+		step.SRBlock = nil
 		return SCResultNextString
 	}
 

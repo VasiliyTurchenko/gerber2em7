@@ -137,9 +137,13 @@ func Main() {
 	printMemUsage("Memory usage before extracting apertures:")
 	/* ---------------------- extract aperture macro defs to the am dictionary ----------- */
 	render.AMacroDict, gerberStrings = render.ExtractAMDefinitions(gerberStrings)
-	for i := range render.AMacroDict {
-		fmt.Println(render.AMacroDict[i].String())
+
+	if viperConfig.GetBool(configurator.CfgCommonPrintAperturesInfo) == true {
+		for i := range render.AMacroDict {
+			fmt.Println(render.AMacroDict[i].String())
+		}
 	}
+
 	/* ---------------------- extract apertures and aperture blocks  --------------------- */
 	// and aperture macros - TODO!!!!!
 	gerberStrings2 := stor.NewStorage()
@@ -270,9 +274,18 @@ func Main() {
 	i := 0
 	for i < len(arrayOfSteps) {
 		if arrayOfSteps[i].SRBlock != nil {
-			insert, excludeLen := render.UnwindSRBlock(&arrayOfSteps, i)
-			tailI := i + excludeLen
-			tail := arrayOfSteps[tailI:]
+			insert, tailBegin := render.UnwindSRBlock(&arrayOfSteps, i)
+//			tailI := i + tailBegin
+			tailI := tailBegin
+//			tail := arrayOfSteps[tailI:]
+			lenTail := len(arrayOfSteps) - tailI
+
+			tail := make ([]*render.State, lenTail)
+			for j := 0 ; j < lenTail ; j++ {
+				tail[j] = new(render.State)
+				tail[j].CopyOfWithOffset(arrayOfSteps[tailI + j], 0, 0)
+			}
+
 			arrayOfSteps = arrayOfSteps[:i]
 			arrayOfSteps = append(arrayOfSteps, *insert...)
 			arrayOfSteps = append(arrayOfSteps, tail...)

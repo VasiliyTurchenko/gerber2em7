@@ -166,12 +166,12 @@ func (stack *Stack) Pop() int {
 }
 
 //
-func CalcExpression(str string) float64 {
+func CalcExpression(str string, varStorage *map[string]float64) float64 {
 
 //	log.SetFlags(log.Lshortfile)
 
 	stack := NewStack()
-	varStorage := make(map[string]float64)
+//	varStorage := make(map[string]float64)
 	var tempVarId = 0
 	var valName = ""
 	const LEFT_PAR = '('
@@ -189,11 +189,11 @@ func CalcExpression(str string) float64 {
 				lPar := stack.Pop()
 				substring := str[lPar+1 : i]
 //				log.Println(substring)
-				tf := TokenizeFormulae(substring, &varStorage)
+				tf := TokenizeFormulae(substring, varStorage)
 				val := CalcTokenizedFormulae(&tf)
 				valName = "$$" + strconv.Itoa(tempVarId)
 				tempVarId++
-				varStorage[valName] = val
+				(*varStorage)[valName] = val
 //				log.Println("Variable " + valName + " = " + strconv.FormatFloat(val, 'f', 10, 64))
 				str = strings.Replace(str, str[lPar:i+1], valName, 1)
 //				log.Println("Reduced str = " + str)
@@ -204,7 +204,7 @@ func CalcExpression(str string) float64 {
 			break
 		}
 	}
-	return varStorage[str]
+	return (*varStorage)[str]
 }
 
 type TokenizedFormula struct {
@@ -258,8 +258,16 @@ func TokenizeFormulae(str string, varStorage *map[string]float64 ) []TokenizedFo
 			tokenStart = false
 			continue
 		}
-		if strings.HasPrefix(convString, "$") {
-			floatVal = (*varStorage)[convString]
+		sign := 1.0
+		sPos := strings.IndexRune(convString, '$')
+		if sPos != -1 {
+			if sPos == 1 {
+				if convString[0] == '-' {
+					sign = -1
+				}
+			}
+		floatVal = (*varStorage)[convString[sPos:]]
+		floatVal *= sign
 		} else {
 			floatVal, err = strconv.ParseFloat(convString, 64)
 			if err != nil {
@@ -279,8 +287,16 @@ func TokenizeFormulae(str string, varStorage *map[string]float64 ) []TokenizedFo
 		needNegNext = needNN
 	}
 	// last token ...
-	if strings.HasPrefix(convString, "$") {
-		floatVal = (*varStorage)[convString]
+	sign := 1.0
+	sPos := strings.IndexRune(convString, '$')
+	if sPos != -1 {
+		if sPos == 1 {
+			if convString[0] == '-' {
+				sign = -1
+			}
+		}
+		floatVal = (*varStorage)[convString[sPos:]]
+		floatVal *= sign
 	} else {
 
 		floatVal, err = strconv.ParseFloat(convString, 64)
@@ -308,7 +324,7 @@ func CalcTokenizedFormulae(tf *[]TokenizedFormula) float64 {
 	i := 0
 	ii := len(*tf) - 1
 	for {
-		if (*tf)[i].operation == Mul || startMul == true {
+		if (*tf)[i].operation == Mul /*|| startMul == true*/ {
 			mulVal = mulVal * (*tf)[i].value
 			startMul = true
 			if i == ii {

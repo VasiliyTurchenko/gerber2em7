@@ -30,6 +30,7 @@ type testCase struct {
 }
 
 var src = []testCase{
+/*
 	{"-2x3", -2 * 3},
 	{"-2X-3", -2 * -3},
 	{"2x3", 2 * 3},
@@ -45,6 +46,8 @@ var src = []testCase{
 	{"-6x9/1x-6x9/2/-6x9/3", -6*9/1*-6*9/2/-6*9/3},
 	{"-1", -1},
 	{"(-2x(333+444x4343)/555)-(666-(-777x(888x(-999--1000))))+(11-12)", -697593},
+*/
+	{"0-3/2+0.5", 0-3.0/2+0.5},
 }
 
 func TestNewOperand(t *testing.T) {
@@ -68,7 +71,8 @@ var src2 = []string{
 
 func TestCalcExpression(t *testing.T) {
 	for _, s := range src {
-		result := CalcExpression(s.src)
+		varStorage := make(map[string]float64)
+		result := CalcExpression(s.src, &varStorage)
 		if result != s.ans {
 			t.Fatal(s.src + " calculation error! got " +
 				strconv.FormatFloat(result, 'f', 10, 64) +
