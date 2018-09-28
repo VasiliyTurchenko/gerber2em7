@@ -159,7 +159,11 @@ func (amp AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
 	//yC := amp.cirCY + y0
 	context.MovePen(x0, y0, xC, yC, context.MovePenColor)
 	//	context.DrawDonut(xC, yC, amp.cirD, amp.cirHD, context.ApColor)
-	context.DrawDonut(xC, yC, d, hd, context.ApColor)
+	colr := context.ApColor
+	if amp.AMModifiers[0].(float64) == 0.0 {
+		colr = context.ClearColor
+	}
+	context.DrawDonut(xC, yC, d, hd, colr)
 	// go back
 	context.MovePen(xC, yC, x0, y0, context.MovePenColor)
 	return
@@ -270,7 +274,11 @@ func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 			width = -width
 		}
 		context.MovePen(x0, y0, x0+dx, y0+dy, context.MovePenColor)
-		context.DrawFilledRectangle(x0+dx, y0+dy, width, height, context.ApColor)
+		colr := context.ApColor
+		if amp.AMModifiers[0].(float64) == 0.0 {
+			colr = context.ClearColor
+		}
+		context.DrawFilledRectangle(x0+dx, y0+dy, width, height, colr)
 		context.MovePen(x0+dx, y0+dy, x0, y0, context.MovePenColor)
 	} else {
 		phi, _ := GetAngle(xer-xsr, yer-ysr)
@@ -295,7 +303,13 @@ func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 			verticesY[i] = float64(y0) + transformFloatCoord(verticesY[i], context.YRes)
 		}
 		context.MovePen(x0, y0, int(verticesX[0]), int(verticesY[0]), context.MovePenColor)
-		context.RenderOutline(&verticesX, &verticesY)
+
+		colr := context.RegionColor
+		if amp.AMModifiers[0].(float64) == 0.0 {
+			colr = context.ClearColor
+		}
+
+		context.RenderOutline(&verticesX, &verticesY, colr)
 		context.MovePen(int(verticesX[0]), int(verticesY[0]), x0, y0, context.MovePenColor)
 	}
 	return
@@ -431,7 +445,13 @@ func (amp AMPrimitiveOutLine) Render(x0, y0 int, context *Render) {
 		verticesY[i] = float64(y0) + transformFloatCoord(verticesY[i], context.YRes)
 	}
 	context.MovePen(x0, y0, int(verticesX[0]), int(verticesY[0]), context.MovePenColor)
-	context.RenderOutline(&verticesX, &verticesY)
+
+	colr := context.RegionColor
+	if amp.AMModifiers[0].(float64) == 0.0 {
+		colr = context.ClearColor
+	}
+
+	context.RenderOutline(&verticesX, &verticesY, colr)
 	context.MovePen(int(verticesX[0]), int(verticesY[0]), x0, y0, context.MovePenColor)
 	return
 }
@@ -526,8 +546,14 @@ func (amp AMPrimitivePolygon) Render(x0, y0 int, context *Render) {
 		verticesY[i] = float64(y0) + transformFloatCoord(verticesY[i], context.YRes)
 	}
 	context.MovePen(x0, y0, int(verticesX[0]), int(verticesY[0]), context.MovePenColor)
-	context.RenderOutline(&verticesX, &verticesY)
-	context.MovePen(int(verticesX[0]), int(verticesY[0]), x0, y0, context.MovePenColor)
+
+	colr := context.RegionColor
+	if amp.AMModifiers[0].(float64) == 0.0 {
+		colr = context.ClearColor
+	}
+
+	context.RenderOutline(&verticesX, &verticesY, context.RegionColor)
+	context.MovePen(int(verticesX[0]), int(verticesY[0]), x0, y0, colr)
 }
 
 func (amp AMPrimitivePolygon) Draw(x0, y0 int, x1, y1 int, context *Render) {
@@ -734,7 +760,7 @@ func (amp AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
 		verticesYI[i] = float64(y0) + transformFloatCoord(verticesYI[i], context.YRes)
 	}
 	context.MovePen(x0, y0, int(verticesXI[0]), int(verticesYI[0]), context.MovePenColor)
-	context.RenderOutline(&verticesXI, &verticesYI)
+	context.RenderOutline(&verticesXI, &verticesYI, context.RegionColor)
 	context.MovePen(int(verticesXI[0]), int(verticesYI[0]), x0, y0, context.MovePenColor)
 
 	for i := range verticesXII {
@@ -745,7 +771,7 @@ func (amp AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
 		verticesYII[i] = float64(y0) + transformFloatCoord(verticesYII[i], context.YRes)
 	}
 	context.MovePen(x0, y0, int(verticesXII[0]), int(verticesYII[0]), context.MovePenColor)
-	context.RenderOutline(&verticesXII, &verticesYII)
+	context.RenderOutline(&verticesXII, &verticesYII, context.RegionColor)
 	context.MovePen(int(verticesXII[0]), int(verticesYII[0]), x0, y0, context.MovePenColor)
 
 	for i := range verticesXIII {
@@ -756,7 +782,7 @@ func (amp AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
 		verticesYIII[i] = float64(y0) + transformFloatCoord(verticesYIII[i], context.YRes)
 	}
 	context.MovePen(x0, y0, int(verticesXIII[0]), int(verticesYIII[0]), context.MovePenColor)
-	context.RenderOutline(&verticesXIII, &verticesYIII)
+	context.RenderOutline(&verticesXIII, &verticesYIII, context.RegionColor)
 	context.MovePen(int(verticesXIII[0]), int(verticesYIII[0]), x0, y0, context.MovePenColor)
 
 	for i := range verticesXIV {
@@ -767,7 +793,7 @@ func (amp AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
 		verticesYIV[i] = float64(y0) + transformFloatCoord(verticesYIV[i], context.YRes)
 	}
 	context.MovePen(x0, y0, int(verticesXIV[0]), int(verticesYIV[0]), context.MovePenColor)
-	context.RenderOutline(&verticesXIV, &verticesYIV)
+	context.RenderOutline(&verticesXIV, &verticesYIV, context.RegionColor)
 	context.MovePen(int(verticesXIV[0]), int(verticesYIV[0]), x0, y0, context.MovePenColor)
 
 	return

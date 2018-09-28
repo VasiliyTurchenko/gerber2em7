@@ -229,7 +229,7 @@ func (xy *XY) Print() {
 
 func (xy *XY) String() string {
 	// "XY object # nnn : (xxx, yyy)
-	retVal := "XY object #" +
+	retVal := "XY object " + xy.coordString +" #" +
 		strconv.Itoa(int(xy.nodeNumber)) +
 		": x,y=(" +
 		strconv.FormatFloat(xy.x.getfval(), 'f', 5, 64) +

@@ -880,9 +880,11 @@ type Polygon struct {
 	polX        *[]float64
 	polY        *[]float64
 	numVertices int
+	id			int
+
 }
 
-func NewPolygon() *Polygon {
+func NewPolygon(id int) *Polygon {
 	retVal := new(Polygon)
 	steps := make([]*State, 0)
 	retVal.steps = &steps
@@ -890,6 +892,7 @@ func NewPolygon() *Polygon {
 	polY := make([]float64, 0)
 	retVal.polX = &polX
 	retVal.polY = &polY
+	retVal.id = id
 	return retVal
 }
 
@@ -903,19 +906,24 @@ func (rc *Render) RenderPolygon() {
 	if (*rc.PolygonPtr.steps)[0].Action == OpcodeD02_MOVE {
 		*rc.PolygonPtr.steps = (*rc.PolygonPtr.steps)[1:]
 	}
-	prev := (*rc.PolygonPtr.steps)[0].PrevCoord
+//	prev := (*rc.PolygonPtr.steps)[0].PrevCoord
 	// check if the region contains self-intersections or is not closed
+
 	for i := 0; i < len(*rc.PolygonPtr.steps); i++ {
+/*
 		if (*rc.PolygonPtr.steps)[i].Coord.Equals(prev, 0.001) {
 			if rc.PrintRegionInfo == true {
 				fmt.Println("Closed segment found with  ", i, "vertexes")
 			}
 			if i < len(*rc.PolygonPtr.steps)-2 {
-				fmt.Println("More than one segment in the region!")
-				fmt.Println("There is", (len(*rc.PolygonPtr.steps) - 2 - i), "points are left out of the region")
+				fmt.Println("More than one segment found in the region " + strconv.Itoa(rc.PolygonPtr.id) +
+				"; there is", (len(*rc.PolygonPtr.steps) - 2 - i), "points are left out.")
+				fmt.Println((*rc.PolygonPtr.steps)[0].Coord.String())
 			}
 			break
 		}
+*/
+/*
 		if i == len(*rc.PolygonPtr.steps)-1 {
 			// the segment is not closed!
 			fmt.Println("The segment is not closed!")
@@ -925,6 +933,7 @@ func (rc *Render) RenderPolygon() {
 			fmt.Println((*rc.PolygonPtr.steps)[len(*rc.PolygonPtr.steps)-1].Coord.String())
 			os.Exit(1000)
 		}
+*/
 	}
 
 	// let's create a array of nodes (vertices)
@@ -940,8 +949,11 @@ func (rc *Render) RenderPolygon() {
 		}
 	}
 	rc.PolygonPtr.numVertices = len(*rc.PolygonPtr.polX)
-
-	rc.RenderOutline(rc.PolygonPtr.polX, rc.PolygonPtr.polY)
+	colr := rc.RegionColor
+	if (*rc.PolygonPtr.steps)[0].Polarity == PolTypeClear {
+		colr = rc.ClearColor
+	}
+	rc.RenderOutline(rc.PolygonPtr.polX, rc.PolygonPtr.polY, colr)
 	return
 }
 
@@ -1058,7 +1070,7 @@ func transformFloatCoord(inc float64, res float64) float64 {
 // renders an outline (a.k.a. polygon).
 // edges are straight lines
 // coordinates are pixels of rc.Img but in float64
-func (rc *Render) RenderOutline(verticesX *[]float64, verticesY *[]float64) {
+func (rc *Render) RenderOutline(verticesX *[]float64, verticesY *[]float64, colr color.RGBA) {
 
 	if len(*verticesX) != len(*verticesY) {
 		panic("(rc *Render) RenderOutline() : vertices arrays lengths are different")
@@ -1121,7 +1133,7 @@ func (rc *Render) RenderOutline(verticesX *[]float64, verticesY *[]float64) {
 		}
 		//  Fill the pixels between node pairs.
 		for i = 0; i < nodes; i += 2 {
-			rc.drawByBrezenham(nodeX[i]+marginXI, pixelY, nodeX[i+1]-marginXI, pixelY, rc.PointSizeI, rc.RegionColor)
+			rc.drawByBrezenham(nodeX[i]+marginXI, pixelY, nodeX[i+1]-marginXI, pixelY, rc.PointSizeI, colr)
 			rc.Plt.DrawLine(nodeX[i]+marginXI, pixelY, nodeX[i+1]-marginXI, pixelY)
 		}
 	}

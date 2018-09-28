@@ -658,7 +658,7 @@ func ProcessStep(stepData *render.State) {
 	if stepData.Region != nil {
 		// process region
 		if renderContext.PolygonPtr == nil {
-			renderContext.PolygonPtr = render.NewPolygon()
+			renderContext.PolygonPtr = render.NewPolygon(stepData.Region.G36StringNumber)
 		}
 		if renderContext.AddStepToPolygon(stepData) == stepData.Region.GetNumXY() {
 			// we can process region
