@@ -8,11 +8,8 @@ import (
 	"fmt"
 	. "gerberbasetypes"
 	"strconv"
-
-	//	. "xy"
-	//	"amprocessor"
+	glog "glog_t"
 )
-
 
 type BlockAperture struct {
 	StartStringNum int
@@ -35,7 +32,6 @@ func (ba *BlockAperture) Print() {
 	}
 }
 
-
 type Aperture struct {
 	Code         int
 	SourceString string
@@ -49,7 +45,6 @@ type Aperture struct {
 	BlockPtr     *BlockAperture
 	MacroPtr     *ApertureMacro
 }
-
 
 func (apert *Aperture) GetCode() int {
 	return apert.Code
@@ -81,31 +76,31 @@ func (apert *Aperture) Render(xC int, yC int, render *Render) {
 	if apert.Type == AptypeMacro {
 		apert.MacroPtr.Render(xC, yC, render)
 	} else {
-			w := transformCoord(apert.XSize, render.XRes)
-			h := transformCoord(apert.YSize, render.YRes)
-			d := transformCoord(apert.Diameter, render.XRes)
-			hd := transformCoord(apert.HoleDiameter, render.XRes)
-			switch apert.Type {
-			case AptypeRectangle:
-				render.DrawFilledRectangle(xC, yC, w, h, render.ApColor)
-			case AptypeCircle:
-				render.DrawDonut(xC, yC, d, hd, render.ApColor)
-			case AptypeObround:
-				if w == h {
-					render.DrawDonut(xC, yC, w, hd, render.ApColor)
-				} else {
-					render.DrawObRound(xC, yC, w, h, 0, render.ObRoundColor)
-				}
-			case AptypePoly:
-				render.DrawDonut(xC, yC, d, hd, render.MissedColor)
-				fmt.Println("Polygonal apertures ain't supported.")
-			default:
-				checkError(errors.New("bad aperture type found"), 5011)
-				break
+		w := transformCoord(apert.XSize, render.XRes)
+		h := transformCoord(apert.YSize, render.YRes)
+		d := transformCoord(apert.Diameter, render.XRes)
+		hd := transformCoord(apert.HoleDiameter, render.XRes)
+		switch apert.Type {
+		case AptypeRectangle:
+			render.DrawFilledRectangle(xC, yC, w, h, render.ApColor)
+		case AptypeCircle:
+			render.DrawDonut(xC, yC, d, hd, render.ApColor)
+		case AptypeObround:
+			if w == h {
+				render.DrawDonut(xC, yC, w, hd, render.ApColor)
+			} else {
+				render.DrawObRound(xC, yC, w, h, 0, render.ObRoundColor)
 			}
+		case AptypePoly:
+			render.DrawDonut(xC, yC, d, hd, render.MissedColor)
+			glog.Errorln("Polygonal apertures ain't supported.")
+		default:
+			checkError(errors.New("bad aperture type found"), 5011)
+			break
+		}
 	}
 }
 
-func (apert *Aperture) Draw(x0, y0 int, x1, y1 int,  context *Render) {
+func (apert *Aperture) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 }

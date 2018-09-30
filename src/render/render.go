@@ -909,7 +909,7 @@ func (rc *Render) RenderPolygon() {
 //	prev := (*rc.PolygonPtr.steps)[0].PrevCoord
 	// check if the region contains self-intersections or is not closed
 
-	for i := 0; i < len(*rc.PolygonPtr.steps); i++ {
+//	for i := 0; i < len(*rc.PolygonPtr.steps); i++ {
 /*
 		if (*rc.PolygonPtr.steps)[i].Coord.Equals(prev, 0.001) {
 			if rc.PrintRegionInfo == true {
@@ -934,7 +934,7 @@ func (rc *Render) RenderPolygon() {
 			os.Exit(1000)
 		}
 */
-	}
+//	}
 
 	// let's create a array of nodes (vertices)
 	rc.PolygonPtr.numVertices = len(*rc.PolygonPtr.steps)

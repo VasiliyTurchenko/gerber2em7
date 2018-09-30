@@ -27,10 +27,11 @@ import (
 	"plotter"
 	"render"
 	. "xy"
+	glog "glog_t"
 )
 
 // TODO get rid of it
-var verboseLevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
+//var verboseLevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
 
 var (
 
@@ -66,9 +67,28 @@ var (
 	//aMacroDict []*render.ApertureMacro
 )
 
+func init() {
+	flag.Usage = usage
+}
+
+func usage() {
+	fmt.Fprintf(os.Stderr, "usage: example -stderrthreshold=[INFO|WARN|FATAL] -log_dir=[string]\n")
+	flag.PrintDefaults()
+	os.Exit(2)
+}
+
 func Main() {
 
-	fmt.Println(returnAppInfo(*verboseLevel))
+	var sourceFileName string
+	flag.StringVar(&sourceFileName, "i", "", "input file")
+
+	flag.Set("stderrthreshold", "ERROR")
+	flag.Set("alsologtostderr", "true")
+	flag.Set("logtostderr", "true")
+
+	flag.Parse()
+
+	glog.Infoln(returnAppInfo(3))
 
 	viperConfig = viper.New()
 	configurator.SetDefaults(viperConfig)
@@ -85,17 +105,14 @@ func Main() {
 
 	//	configurator.DiagnosticAllCfgPrint(viperConfig)
 
-	var sourceFileName string
-	flag.StringVar(&sourceFileName, "i", "", "input file")
-	flag.Parse()
 	if len(sourceFileName) == 0 {
 		fmt.Println("No input file specified.\nUsage:")
 		flag.PrintDefaults()
 		os.Exit(-1)
 	}
 	timeStamp := time.Now()
-	timeInfo(timeStamp)
-	fmt.Println("input file:", sourceFileName, "\n")
+
+	glog.Infoln(timeInfo(timeStamp) + "input file:", sourceFileName)
 
 	/*
 	   Process input string
@@ -108,7 +125,7 @@ func Main() {
 
 	content, err := ioutil.ReadFile(sourceFileName)
 	if err != nil {
-		checkError(err, -1)
+		checkError(err)
 	}
 	splittedString := TokenizeGerber(&content)
 		// feed the storage
@@ -121,18 +138,15 @@ func Main() {
 	// search for format definition strings
 	mo, err := searchMO(gerberStrings)
 	if err != nil {
-		fmt.Println(err)
+		glog.Warning(err)
 	}
 
 	fs, err := searchFS(gerberStrings)
-	checkError(err, 301)
+	checkError(err)
 
 	fSpec = new(FormatSpec)
 	if fSpec.Init(fs, mo) == false {
-		fmt.Println("Can not parse:")
-		fmt.Println(fs)
-		fmt.Println(mo)
-		os.Exit(302)
+		glog.Fatalf("Can not parse: %s \\n %s\n", fs, mo)
 	}
 	printMemUsage("Memory usage before extracting apertures:")
 	/* ---------------------- extract aperture macro defs to the am dictionary ----------- */
@@ -140,12 +154,11 @@ func Main() {
 
 	if viperConfig.GetBool(configurator.CfgCommonPrintAperturesInfo) == true {
 		for i := range render.AMacroDict {
-			fmt.Println(render.AMacroDict[i].String())
+			glog.Info(render.AMacroDict[i].String())
 		}
 	}
 
 	/* ---------------------- extract apertures and aperture blocks  --------------------- */
-	// and aperture macros - TODO!!!!!
 	gerberStrings2 := stor.NewStorage()
 	aperturesList = list.New()
 	apertureBlocks = make(map[string]*render.BlockAperture)
@@ -162,7 +175,8 @@ func Main() {
 		if strings.Compare(gerberString, GerberApertureBlockDefEnd) == 0 {
 			lastOpenedAB := len(apertureBlockOpened) - 1
 			if lastOpenedAB < 0 {
-				panic("No more open aperture blocks left!")
+//				panic("No more open aperture blocks left!")
+				glog.Fatalln("No more open aperture blocks left!")
 			}
 			aperture := new(render.Aperture)
 			aperture.Code = apertureBlocks[apertureBlockOpened[lastOpenedAB]].Code
@@ -220,7 +234,6 @@ func Main() {
 		apertureBlocks[apBlock].StepsPtr = apertureBlocks[apBlock].StepsPtr[:bsn]
 	}
 
-	fmt.Println()
 	printMemUsage("Memory usage before creating Main step sequence:")
 
 	// patch
@@ -274,18 +287,13 @@ func Main() {
 	i := 0
 	for i < len(arrayOfSteps) {
 		if arrayOfSteps[i].SRBlock != nil {
-			insert, tailBegin := render.UnwindSRBlock(&arrayOfSteps, i)
-//			tailI := i + tailBegin
-			tailI := tailBegin
-//			tail := arrayOfSteps[tailI:]
+			insert, tailI := render.UnwindSRBlock(&arrayOfSteps, i)
 			lenTail := len(arrayOfSteps) - tailI
-
 			tail := make ([]*render.State, lenTail)
 			for j := 0 ; j < lenTail ; j++ {
 				tail[j] = new(render.State)
 				tail[j].CopyOfWithOffset(arrayOfSteps[tailI + j], 0, 0)
 			}
-
 			arrayOfSteps = arrayOfSteps[:i]
 			arrayOfSteps = append(arrayOfSteps, *insert...)
 			arrayOfSteps = append(arrayOfSteps, tail...)
@@ -299,22 +307,22 @@ func Main() {
 	if viperConfig.GetBool(configurator.CfgCommonPrintRegionsInfo) == true {
 		j := 0
 		for k := regionsList.Front(); k != nil; k = k.Next() {
-			fmt.Printf("%+v\n", k.Value)
+			glog.Infoln("\n" + k.Value.(*render.Aperture).String())
 			j++
 		}
-		fmt.Println("Total", j, "regions found.")
+		glog.Infoln("Total", j, "regions found.")
 	}
 	// print apertures info
 	if viperConfig.GetBool(configurator.CfgCommonPrintAperturesInfo) == true {
 		j := 0
 		for k := aperturesList.Front(); k != nil; k = k.Next() {
-			fmt.Printf("%+v\n", k.Value)
+			glog.Infoln("\n" + k.Value.(*render.Aperture).String())
 			j++
 		}
-		fmt.Println("Total", j, "apertures found.")
+		glog.Infoln("Total", j, "apertures found.")
 	}
 
-	fmt.Println("Total", len(arrayOfSteps)-1, "steps to do.")
+	glog.Infoln("Total", len(arrayOfSteps)-1, "steps to do.")
 
 	var maxX, maxY float64 = 0, 0
 	var minX, minY = 1000000.0, 1000000.0
@@ -334,8 +342,8 @@ func Main() {
 	}
 
 	printMemUsage("Memory usage before rendering:")
-	timeInfo(timeStamp)
-	fmt.Println("Rendering process started\n")
+
+	glog.Info(timeInfo(timeStamp) + "Rendering process started\n")
 
 	/*
 	   let's render the PCB
@@ -344,8 +352,8 @@ func Main() {
 	plotterInstance.TakePen(1)
 	plotterInstance.SetOutFileName(viperConfig.GetString(configurator.CfgPlotterOutFile))
 	renderContext = render.NewRender(plotterInstance, viperConfig, minX, minY, maxX, maxY)
-	fmt.Printf("Min. X, Y found: (%f,%f)\n", minX, minY)
-	fmt.Printf("Max. X, Y found: (%f,%f)\n", maxX, maxY)
+	glog.Infof("Min. X, Y found: (%f,%f)\n", minX, minY)
+	glog.Infof("Max. X, Y found: (%f,%f)\n", maxX, maxY)
 
 	printMemUsage("Memory usage after render context was initialized:")
 
@@ -362,20 +370,20 @@ func Main() {
 	}
 
 	if viperConfig.GetBool(configurator.CfgCommonPrintStatistic) == true {
-		fmt.Printf("%s%d%s", "The plotter have drawn ", renderContext.LineBresCounter, " straight lines using Brezenham\n")
-		fmt.Printf("%s%.0f%s", "Total lenght of straight lines = ", renderContext.LineBresLen*renderContext.XRes, " mm\n")
-		fmt.Printf("%s%d%s", "The plotter have drawn ", renderContext.CircleBresCounter, " circles\n")
-		fmt.Printf("%s%.0f%s", "Total lenght of circles = ", renderContext.CircleLen*renderContext.XRes, " mm\n")
-		fmt.Println("The plotter have drawn", renderContext.FilledRctCounter, "filled rectangles")
-		fmt.Println("The plotter have drawn", renderContext.ObRoundCounter, "obrounds (boxes)")
-		fmt.Println("The plotter have moved pen", renderContext.MovePenCounters, "times")
-		fmt.Printf("%s%.0f%s", "Total move distance = ", renderContext.MovePenDistance*renderContext.XRes, " mm\n")
+		glog.Infof("%s%d%s", "The plotter have drawn ", renderContext.LineBresCounter, " straight lines using Brezenham\n")
+		glog.Infof("%s%.0f%s", "Total lenght of straight lines = ", renderContext.LineBresLen*renderContext.XRes, " mm\n")
+		glog.Infof("%s%d%s", "The plotter have drawn ", renderContext.CircleBresCounter, " circles\n")
+		glog.Infof("%s%.0f%s", "Total lenght of circles = ", renderContext.CircleLen*renderContext.XRes, " mm\n")
+		glog.Infoln("The plotter have drawn", renderContext.FilledRctCounter, "filled rectangles")
+		glog.Infoln("The plotter have drawn", renderContext.ObRoundCounter, "obrounds (boxes)")
+		glog.Infoln("The plotter have moved pen", renderContext.MovePenCounters, "times")
+		glog.Infof("%s%.0f%s", "Total move distance = ", renderContext.MovePenDistance*renderContext.XRes, " mm\n")
 
 	}
 
 	if renderContext.YNeedsFlip == true {
-		timeInfo(timeStamp)
-		fmt.Println("Started flipping (only png image) over X-axis")
+
+		glog.Infoln(timeInfo(timeStamp) + "Started flipping (only png image) over X-axis")
 		imgLines := renderContext.Img.Bounds().Max.Y - renderContext.Img.Bounds().Min.Y
 		pixelsInLine := renderContext.Img.Bounds().Max.X - renderContext.Img.Bounds().Min.X
 		steps := imgLines / 2
@@ -388,28 +396,28 @@ func Main() {
 		}
 	}
 
-	timeInfo(timeStamp)
-	fmt.Println("Rendering process finished")
+
+	glog.Infoln(timeInfo(timeStamp)+ "Rendering process finished")
 
 	// Save to out.png
 	if viperConfig.GetBool(configurator.CfgRendererGeneratePNG) == true {
 		printMemUsage("Memory usage before png encoding:")
-		timeInfo(timeStamp)
-		fmt.Println("Generating png image ", renderContext.Img.Bounds().String())
+
+		glog.Infoln(timeInfo(timeStamp) +"Generating png image ", renderContext.Img.Bounds().String())
 		f, _ := os.OpenFile("G:\\go_prj\\gerber2em7\\src\\out.png", os.O_WRONLY|os.O_CREATE, 0600)
 		defer f.Close()
 		png.Encode(f, renderContext.Img)
-		timeInfo(timeStamp)
-		fmt.Println("Image is saved to the file", viperConfig.GetString(configurator.CfgRendererOutFile))
+
+		glog.Infoln(timeInfo(timeStamp)+"Image is saved to the file", viperConfig.GetString(configurator.CfgRendererOutFile))
 		printMemUsage("Memory usage after png encoding:")
 	}
-	timeInfo(timeStamp)
-	fmt.Println("Saving plotter commands stream to file")
+
+	glog.Infoln(timeInfo(timeStamp)+"Saving plotter commands stream to file")
 	plotterInstance.Stop()
-	timeInfo(timeStamp)
-	fmt.Println("Plotter commands are saved to the file", viperConfig.GetString(configurator.CfgPlotterOutFile))
-	timeInfo(timeStamp)
-	fmt.Println("Exiting")
+
+	glog.Infoln(timeInfo(timeStamp) + "Plotter commands are saved to the file", viperConfig.GetString(configurator.CfgPlotterOutFile))
+
+	glog.Exitln(timeInfo(timeStamp) + "Exiting")
 }
 
 ////////////////////////////////////////////////////// end of main ///////////////////////////////////////////////////
@@ -469,12 +477,14 @@ func saveIntermediate(storage *stor.Storage, fileName string) {
 
 	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
-		panic(err)
+//		panic(err)
+		glog.Fatalln(err)
 	}
 	defer file.Close()
 	err = file.Truncate(0)
 	if err != nil {
-		panic(err)
+//		panic(err)
+		glog.Fatalln(err)
 	}
 	storage.ResetPos()
 	for {
@@ -486,13 +496,15 @@ func saveIntermediate(storage *stor.Storage, fileName string) {
 		}
 		_, err = file.WriteString(str + "\n")
 		if err != nil {
-			panic(err)
+			glog.Fatalln(err)
+//			panic(err)
 		}
 	}
 	file.Sync()
 	err = file.Close()
 	if err != nil {
-		panic(err)
+//		panic(err)
+		glog.Fatalln(err)
 	}
 }
 
@@ -572,9 +584,9 @@ func squeezeString(inString string) string {
 
 // this function returns application info
 func returnAppInfo(verbLevel int) string {
-	var header = "Gerber to EM-7052 translation tool\n"
-	var version = "Version 0.1.0\n"
-	var progDate = "07-Sep-2018\n"
+	var header = "Gerber to EM-7052 translation tool. "
+	var version = "Version 0.2.0. "
+	var progDate = "30-Sep-2018"
 	var retVal = "\n"
 	switch verbLevel {
 	case 3:
@@ -595,45 +607,45 @@ func printMemUsage(header string) {
 	if viperConfig.GetBool(configurator.CfgCommonPrintMemoryInfo) == false {
 		return
 	}
-
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Println(header)
-	fmt.Printf("Alloc = %v KB", bToKb(memStats.Alloc))
-	fmt.Printf("\tTotalAlloc = %v KB", bToKb(memStats.TotalAlloc))
-	fmt.Printf("\tSys = %v KB", bToKb(memStats.Sys))
-	fmt.Printf("\tNumGC = %v\n", memStats.NumGC)
+	glog.Infof(header + " Alloc = %v KB\tTotalAlloc = %v KB\tSys = %v KB\tNumGC = %v\n",
+		bToKb(memStats.Alloc),
+		bToKb(memStats.TotalAlloc),
+		bToKb(memStats.Sys),
+		memStats.NumGC)
 }
 
 func bToKb(b uint64) uint64 {
 	return b / 1024
 }
 
-func timeInfo(prev time.Time) {
-	now := time.Now()
+func timeInfo(prev time.Time) string {
+//	now := time.Now()
 	elapsed := time.Since(prev)
 	/*
 		"[23:59:04 +2.00001] "
 	*/
-	out := "["
-	hr := strconv.Itoa(now.Hour())
-	if len(hr) == 1 {
-		hr = "0" + hr
-	}
-	min := strconv.Itoa(now.Minute())
-	if len(min) == 1 {
-		min = "0" + min
-	}
-	sec := strconv.Itoa(now.Second())
-	if len(sec) == 1 {
-		sec = "0" + sec
-	}
-
-	out = out + hr + ":" + min + ":" + sec + " +"
+	out := "[+"
+	//hr := strconv.Itoa(now.Hour())
+	//if len(hr) == 1 {
+	//	hr = "0" + hr
+	//}
+	//min := strconv.Itoa(now.Minute())
+	//if len(min) == 1 {
+	//	min = "0" + min
+	//}
+	//sec := strconv.Itoa(now.Second())
+	//if len(sec) == 1 {
+	//	sec = "0" + sec
+	//}
+	//
+	//out = out + hr + ":" + min + ":" + sec + " +"
 	elapsedSec := (float64(elapsed.Nanoseconds() / (1000 * 1000))) / 1000.0
-	out = out + strconv.FormatFloat(elapsedSec, 'f', 3, 64) + "] "
-	fmt.Print(out)
+	//out = out + strconv.FormatFloat(elapsedSec, 'f', 3, 64) + "] "
+	return out + strconv.FormatFloat(elapsedSec, 'f', 3, 64) + "] "
+	//fmt.Print(out)
 }
 
 /*
@@ -691,7 +703,7 @@ func ProcessStep(stepData *render.State) {
 						h := transformCoord(stepData.CurrentAp.YSize, renderContext.YRes)
 						renderContext.DrawByRectangleAperture(Xp, Yp, Xc, Yc, w, h, stepColor)
 					} else {
-						fmt.Println("Error. Only solid drawCircle and solid rectangle may be used to draw.")
+						glog.Fatalln("Error. Only solid drawCircle and solid rectangle may be used to draw.")
 						break
 					}
 				}
@@ -730,7 +742,7 @@ func ProcessStep(stepData *render.State) {
 							renderContext.RegionColor)
 						if err != nil {
 							stepData.Print()
-							checkError(err, 998)
+							checkError(err)
 						}
 						renderContext.DrawDonut(Xp, Yp, apertureSize, 0, stepColor)
 						renderContext.DrawDonut(Xc, Yc, apertureSize, 0, stepColor)
@@ -752,13 +764,12 @@ func ProcessStep(stepData *render.State) {
 				if stepData.Polarity == PolTypeDark {
 					stepData.CurrentAp.Render(Xc, Yc, renderContext)
 				} else {
-					fmt.Println("Clear polarity is not supported.")
+					glog.Errorln("Clear polarity is not supported.")
 				}
 
 			}
 		default:
-			checkError(errors.New("(renderContext *Render) ProcessStep(stepData *gerbparser.State) internal error. Bad opcode"), 666)
-			fmt.Println("")
+			checkError(errors.New("(renderContext *Render) ProcessStep(stepData *gerbparser.State) internal error. Bad opcode"))
 			break
 		}
 	}
@@ -781,13 +792,14 @@ func abs(x int) int {
 	case x >= MinInt:
 		return -x
 	}
-	panic("math/int.Abs: invalid argument")
+//	panic("math/int.Abs: invalid argument")
+	glog.Fatalln("math/int.Abs: invalid argument")
+	return 0
 }
 
-func checkError(err error, exitCode int) {
+func checkError(err error) {
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(exitCode)
+		glog.Fatalln(err)
 	}
 }
 

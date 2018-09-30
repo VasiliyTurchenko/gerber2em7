@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	stor "strings_storage"
+	glog "glog_t"
 )
 
 // aperture macro dictionary
@@ -54,7 +55,9 @@ func NewAMPrimitive(amp AMPrimitiveType, modifStrings []interface{}) AMPrimitive
 	case AMPrimitive_Thermal:
 		return AMPrimitiveThermal{AMPrimitive_Thermal, modifStrings}
 	default:
-		panic("unknown aperture macro primitive type")
+//		panic("unknown aperture macro primitive type")
+	glog.Fatalln("unknown aperture macro primitive type")
+		return nil
 	}
 
 }
@@ -160,7 +163,7 @@ func (amp AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
 	context.MovePen(x0, y0, xC, yC, context.MovePenColor)
 	//	context.DrawDonut(xC, yC, amp.cirD, amp.cirHD, context.ApColor)
 	colr := context.ApColor
-	if amp.AMModifiers[0].(float64) == 0.0 {
+	if 0.0 == amp.AMModifiers[0].(float64) {
 		colr = context.ClearColor
 	}
 	context.DrawDonut(xC, yC, d, hd, colr)
@@ -188,8 +191,10 @@ func (amp AMPrimitiveCircle) Draw(x0, y0 int, x1, y1 int, context *Render) {
 */
 func (amp AMPrimitiveCircle) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 4 {
-		panic("unable to create aperture macro primitive circle - not enough parameters, have " +
-			strconv.Itoa(len(amp.AMModifiers)) + ", need 4 or 5")
+		//panic("unable to create aperture macro primitive circle - not enough parameters, have " +
+		//	strconv.Itoa(len(amp.AMModifiers)) + ", need 4 or 5")
+		glog.Fatalln("unable to create aperture macro primitive circle - not enough parameters, " +
+			strconv.Itoa(len(amp.AMModifiers)) + " given, need 4 or 5")
 	}
 	if len(amp.AMModifiers) == 4 {
 		amp.AMModifiers = append(amp.AMModifiers, 0.0)
@@ -321,8 +326,8 @@ func (amp AMPrimitiveVectLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 func (amp AMPrimitiveVectLine) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 7 {
-		panic("unable to create aperture macro primitive vector line - not enough parameters, have " +
-			strconv.Itoa(len(amp.AMModifiers)) + ", need 7")
+		glog.Fatalln("unable to create aperture macro primitive vector line - not enough parameters, " +
+			strconv.Itoa(len(amp.AMModifiers)) + " given, need 7")
 	}
 	for i := range amp.AMModifiers {
 		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
@@ -383,8 +388,8 @@ func (amp AMPrimitiveCenterLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 func (amp AMPrimitiveCenterLine) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
-		panic("unable to create aperture macro primitive center line - not enough parameters, have " +
-			strconv.Itoa(len(amp.AMModifiers)) + ", need 6")
+		glog.Fatalln("unable to create aperture macro primitive center line - not enough parameters, " +
+			strconv.Itoa(len(amp.AMModifiers)) + " given, need 6")
 	}
 	for i := range amp.AMModifiers {
 		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
@@ -480,13 +485,13 @@ func (amp AMPrimitiveOutLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 func (amp AMPrimitiveOutLine) Init(scale float64, params []float64) AMPrimitive {
 	numCoordPairs := int(convertToFloat(amp.AMModifiers[1], params))
 	if numCoordPairs < 3 {
-		panic("unable to create aperture macro primitive outline - not enough coordinate pairs, have " +
-			strconv.Itoa(numCoordPairs) + ", need at least 3")
+		glog.Fatalln("unable to create aperture macro primitive outline - not enough coordinate pairs, " +
+			strconv.Itoa(numCoordPairs) + " given, need at least 3")
 	}
 	correctLength := 2 + numCoordPairs*2 + 1
 	if len(amp.AMModifiers) < correctLength {
-		panic("unable to create aperture macro primitive outline - not enough parameters, have " +
-			strconv.Itoa(len(amp.AMModifiers)) + ", need " + strconv.Itoa(correctLength))
+		glog.Fatalln("unable to create aperture macro primitive outline - not enough parameters, " +
+			strconv.Itoa(len(amp.AMModifiers)) + " given, need " + strconv.Itoa(correctLength))
 	}
 	numCoordPairs++
 
@@ -562,8 +567,8 @@ func (amp AMPrimitivePolygon) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 func (amp AMPrimitivePolygon) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
-		panic("unable to create aperture macro primitive polygon - not enough parameters, have " +
-			strconv.Itoa(len(amp.AMModifiers)) + ", need 6")
+		glog.Fatalln("unable to create aperture macro primitive polygon - not enough parameters, " +
+			strconv.Itoa(len(amp.AMModifiers)) + " given, need 6")
 	}
 	for i := range amp.AMModifiers {
 		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
@@ -669,8 +674,8 @@ func (amp AMPrimitiveMoire) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 func (amp AMPrimitiveMoire) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 7 {
-		panic("unable to create aperture macro primitive moire - not enough parameters, have " +
-			strconv.Itoa(len(amp.AMModifiers)) + ", need 7")
+		glog.Fatalln("unable to create aperture macro primitive moire - not enough parameters, " +
+			strconv.Itoa(len(amp.AMModifiers)) + " given, need 7")
 	}
 	for i := range amp.AMModifiers {
 		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
@@ -820,8 +825,8 @@ func (amp AMPrimitiveThermal) Draw(x0, y0 int, x1, y1 int, context *Render) {
 */
 func (amp AMPrimitiveThermal) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
-		panic("unable to create aperture macro primitive thermal - not enough parameters, have " +
-			strconv.Itoa(len(amp.AMModifiers)) + ", need 6")
+		glog.Fatalln("unable to create aperture macro primitive thermal - not enough parameters, " +
+			strconv.Itoa(len(amp.AMModifiers)) + " given, need 6")
 	}
 	for i := range amp.AMModifiers {
 		amp.AMModifiers[i] = convertToFloat(amp.AMModifiers[i], params)
@@ -1075,14 +1080,14 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 
 	retVal := new(Aperture)
 	if len(name) == 0 {
-		panic("bad aperture " + strconv.Itoa(code) + " name")
+		glog.Fatalln("bad aperture " + strconv.Itoa(code) + " name")
 	}
 	if len(name) == 1 && (name[0] == 'C' || name[0] == 'R' || name[0] == 'O' || name[0] == 'P') {
 		// it's ordinary aperture
 		err := retVal.Init2(code, name, def, scale)
 		if err != nil {
-			fmt.Println(name + def)
-			panic(err)
+			glog.Errorln(name + def)
+			glog.Fatalln(err)
 		}
 
 	} else { // it's macro aperture
@@ -1100,7 +1105,7 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 		for i := range params {
 			flP, err := strconv.ParseFloat(params[i], 64)
 			if err != nil {
-				panic("non-number value found in macro parameters")
+				glog.Fatalln("non-number value found in macro parameters")
 			}
 			ParamsF = append(ParamsF, flP)
 		}
@@ -1120,7 +1125,7 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 							}
 							varIndex, err := strconv.Atoi(instance.Variables[n].Name[1:])
 							if err != nil {
-								panic("bad variable name: " + instance.Variables[n].Name)
+								glog.Fatalln("bad variable name: " + instance.Variables[n].Name)
 							}
 							addParamsF := varIndex - len(ParamsF)
 							for addParamsF > 0 {
@@ -1136,7 +1141,7 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 			}
 		}
 		if len(instance.Name) == 0 {
-			panic("unable to instantiate aperture macro " + strconv.Itoa(code) + name)
+			glog.Fatalln("unable to instantiate aperture macro " + strconv.Itoa(code) + name)
 		}
 		retVal.MacroPtr = &instance
 	}
@@ -1277,7 +1282,8 @@ func convertToFloat(arg interface{}, params []float64) float64 {
 
 			varNum, err := strconv.Atoi(arg.(string)[1:])
 			if err != nil {
-				panic(panicString3 + arg.(string))
+//				panic(panicString3 + arg.(string))
+				glog.Fatal(panicString3 + arg.(string))
 			}
 			if len(params) >= varNum {
 				return params[varNum-1]
@@ -1287,14 +1293,14 @@ func convertToFloat(arg interface{}, params []float64) float64 {
 		} else {
 			retVal, err := strconv.ParseFloat(arg.(string), 64)
 			if err != nil {
-				panic(panicString1)
+				glog.Fatal(panicString1)
 			}
 			return retVal
 		}
 	case int:
 		return float64(arg.(int))
 	default:
-		panic(panicString2)
+		glog.Fatal(panicString2)
 	}
 	return 0
 }
@@ -1359,5 +1365,5 @@ func GetFirstQuadrantArc(r, phi0, phi1, arcStep float64) (vertX *[]float64, vert
 }
 
 func BadMethod() {
-	panic("the macro aperture can not be used to DRAW (D01*)")
+	glog.Fatal("the macro aperture can not be used to DRAW (D01*)")
 }
