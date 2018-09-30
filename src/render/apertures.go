@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	. "gerberbasetypes"
-	"strconv"
 	glog "glog_t"
+	"strconv"
 )
 
 type BlockAperture struct {
@@ -95,7 +95,7 @@ func (apert *Aperture) Render(xC int, yC int, render *Render) {
 			render.DrawDonut(xC, yC, d, hd, render.MissedColor)
 			glog.Errorln("Polygonal apertures ain't supported.")
 		default:
-			checkError(errors.New("bad aperture type found"), 5011)
+			checkError(errors.New("bad aperture type found"))
 			break
 		}
 	}

@@ -3,12 +3,11 @@ package render
 import (
 	"configurator"
 	"errors"
-	"fmt"
 	"github.com/spf13/viper"
+	glog "glog_t"
 	"image"
 	"image/color"
 	"math"
-	"os"
 	"strconv"
 )
 
@@ -98,7 +97,7 @@ func (rc *Render) Init(plt *plotter.PlotterParams, viper *viper.Viper, minX, min
 	arr := viper.Get(configurator.CfgPlotterPenSizes)
 	b, ok := arr.([]interface{})
 	if ok == false {
-		panic("penSizes configuration error")
+		glog.Fatalln("penSizes configuration error")
 	}
 	rc.PenWidth = b[0].(float64)
 
@@ -120,14 +119,12 @@ func (rc *Render) Init(plt *plotter.PlotterParams, viper *viper.Viper, minX, min
 	maxLimY1 := int(float64(rc.CanvasHeight) / float64(rc.YRes))
 
 	if rc.LimitsX1 > maxLimX1 {
-		fmt.Println("Warning: the PCB size X is bigger than plotter working area!")
-		fmt.Println("the PCB will be truncated.")
+		glog.Warningln("PCB size X is bigger than plotter working area! The PCB will be truncated.")
 		rc.LimitsX1 = maxLimX1
 	}
 
 	if rc.LimitsY1 > maxLimY1 {
-		fmt.Println("Warning: the PCB size Y is bigger than plotter working area!")
-		fmt.Println("the PCB will be truncated.")
+		glog.Warningln("PCB size Y is bigger than plotter working area! The PCB will be truncated.")
 		rc.LimitsY1 = maxLimY1
 	}
 
@@ -215,7 +212,7 @@ func (rc *Render) DrawByRectangleAperture(x0, y0, x1, y1, apSizeX, apSizeY int, 
 	var w, h, xOrigin, yOrigin int
 
 	if x0 != x1 && y0 != y1 {
-		fmt.Println("Drawing by rectangular aperture with arbitrary angle is not supported!")
+		glog.Errorln("Drawing by rectangular aperture with arbitrary angle is not supported!")
 		rc.drawCircle(x0, y0, apSizeX/2, rc.PointSizeI, rc.MissedColor)
 		rc.drawCircle(x1, y1, apSizeX/2, rc.PointSizeI, rc.MissedColor)
 	}
@@ -457,8 +454,7 @@ func (rc *Render) DrawFilledRectangle(origX, origY, w, h int, col color.Color) {
 		}
 	}
 	if xPen != origX || yPen != origY {
-		fmt.Println("Error during filled rectangle drawing: pen did not returned to the origin setPoint!")
-		os.Exit(700)
+		glog.Fatalln("Error during filled rectangle drawing: pen did not returned to the origin setPoint!")
 	}
 	rc.FilledRctCounter++
 }
@@ -717,7 +713,8 @@ func (rc *Render) DrawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm IP
 
 	if qm == QuadModeSingle {
 		// we have to find the sign of the I and J
-		fmt.Println("G74 hook")
+		glog.Fatalln("G74 hook")
+
 		return nil
 	}
 	if rc.DrawContours == true {
@@ -964,8 +961,7 @@ func (rc *Render) interpolate(st *State) {
 	var xc, yc float64 // DrawArc center coordinates in mm
 	if st.QMode == QuadModeSingle {
 		// we have to find the sign of the I and J
-		fmt.Println("G74 hook")
-		os.Exit(800)
+		glog.Fatalln("G74 hook")
 	}
 	xc = st.PrevCoord.GetX() + st.Coord.GetI()
 	yc = st.PrevCoord.GetY() + st.Coord.GetJ()
@@ -974,8 +970,7 @@ func (rc *Render) interpolate(st *State) {
 	dr := rt - r
 
 	if math.Abs(dr) > rc.PointSize {
-		fmt.Println("G75 diff.=", rt-r)
-		panic("(rc *Render) interpolate(): Deviation more than pointSize.")
+		glog.Fatalln("(rc *Render) interpolate(): Deviation more than pointSize.", "G75 diff.=", rt-r )
 	}
 	r = (r + rt) / 2
 
@@ -1032,7 +1027,7 @@ func (rc *Render) interpolate(st *State) {
 			}
 		}
 	} else {
-		panic("(rc *Render) interpolate(): Bad IpMode.")
+		glog.Fatalln("(rc *Render) interpolate(): Bad IpMode.")
 	}
 
 }
@@ -1073,7 +1068,7 @@ func transformFloatCoord(inc float64, res float64) float64 {
 func (rc *Render) RenderOutline(verticesX *[]float64, verticesY *[]float64, colr color.RGBA) {
 
 	if len(*verticesX) != len(*verticesY) {
-		panic("(rc *Render) RenderOutline() : vertices arrays lengths are different")
+		glog.Fatalln("(rc *Render) RenderOutline() : vertices arrays lengths are different")
 	}
 	numVertices := len(*verticesX)
 	minY := (*verticesY)[0]

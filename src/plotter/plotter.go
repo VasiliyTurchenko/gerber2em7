@@ -4,8 +4,8 @@
 package plotter
 
 import (
-	"fmt"
 	. "gerberbasetypes"
+	glog "glog_t"
 	"os"
 	"strconv"
 	"strings"
@@ -107,23 +107,23 @@ func (plotter *PlotterParams) Stop() {
 	plotter.squeeze()
 	plotter.outputFile, plotter.err = os.OpenFile(plotter.outFileName, os.O_WRONLY|os.O_CREATE, 0600)
 	if plotter.err != nil {
-		panic(plotter.err)
+		glog.Fatal(plotter.err)
 	}
 	defer plotter.outputFile.Close()
 	plotter.err = plotter.outputFile.Truncate(0)
 	if plotter.err != nil {
-		panic(plotter.err)
+		glog.Fatal(plotter.err)
 	}
 	for _, s := range plotter.outStringBuffer {
 		_, plotter.err = plotter.outputFile.WriteString(s)
 		if plotter.err != nil {
-			panic(plotter.err)
+			glog.Fatal(plotter.err)
 		}
 	}
 	plotter.outputFile.Sync()
 	plotter.err = plotter.outputFile.Close()
 	if plotter.err != nil {
-		panic(plotter.err)
+		glog.Fatal(plotter.err)
 	}
 	plotter.outStringBuffer = nil
 	return
@@ -146,7 +146,6 @@ func (plotter *PlotterParams) moveTo(x, y int) string {
 func (plotter *PlotterParams) DrawLine(x0, y0, x1, y1 int) string {
 	var retVal string
 	if (plotter.currentPosX != x0) || (plotter.currentPosY != y0) {
-		//		fmt.Println("Draw line. Position discrepance detected!")
 		retVal = plotter.moveTo(x0, y0)
 		plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
 	}
@@ -170,7 +169,7 @@ func (plotter *PlotterParams) Circle(xc, yc, r int) string {
 func (plotter *PlotterParams) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm IPmode) string {
 	var retVal string
 	if (plotter.currentPosX != x0) || (plotter.currentPosY != y0) {
-		fmt.Println("Arc. Position discrepance detected!")
+		glog.Error("Arc. Position discrepance detected!")
 		retVal = plotter.moveTo(x0, y0)
 		plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
 	}
@@ -189,7 +188,7 @@ func (plotter *PlotterParams) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm IPmo
 
 func (plotter *PlotterParams) TakePen(penNumber int) string {
 	if penNumber < 0 || penNumber > 4 {
-		panic("Bad pen number specified!")
+		glog.Fatal("Bad pen number specified!")
 	}
 	retVal := "P" + strconv.Itoa(penNumber) + "\n"
 	plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)

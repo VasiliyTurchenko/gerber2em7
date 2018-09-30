@@ -537,7 +537,7 @@ func saveIntermediate(storage *stor.Storage, fileName string) {
 
 func printSqueezedOut(str string) {
 	if viperConfig.GetBool(configurator.CfgCommonPrintGerberComments) == true {
-		fmt.Println(str)
+		glog.Infoln(str)
 	}
 	return
 }
@@ -747,9 +747,9 @@ func ProcessStep(stepData *render.State) {
 						renderContext.DrawDonut(Xp, Yp, apertureSize, 0, stepColor)
 						renderContext.DrawDonut(Xc, Yc, apertureSize, 0, stepColor)
 					} else if stepData.CurrentAp.Type == AptypeRectangle {
-						fmt.Println("Arc drawing by rectangle aperture is not supported now.")
+						glog.Fatalln("Arc drawing by rectangle aperture is not supported now.")
 					} else {
-						fmt.Println("Error. Only solid drawCircle and solid rectangle may be used to draw.")
+						glog.Fatalln("Only solid drawCircle and solid rectangle may be used to draw.")
 						break
 					}
 				}

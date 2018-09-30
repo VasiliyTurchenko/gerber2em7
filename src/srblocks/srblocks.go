@@ -126,10 +126,6 @@ func ExtractLetterDelimitedFloats(ins, template string) (out map[byte]float64, e
 			break
 		}
 	}
-	/*
-		fmt.Println(p)
-		fmt.Println(ts)
-	*/
 	for i := range p {
 		if p[i] == -1 {
 			continue

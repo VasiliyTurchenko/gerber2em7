@@ -47,9 +47,6 @@ func (region *Region) Close(strnum int) error {
 		return errors.New("can not close the contour referenced by null pointer")
 	}
 	region.G37StringNumber = strnum
-
-	//	fmt.Println(region.String())
-
 	return nil
 }
 

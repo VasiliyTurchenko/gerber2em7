@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	. "gerberbasetypes"
-	"os"
+	glog "glog_t"
 	"regions"
 	"srblocks"
 	"strconv"
@@ -144,10 +144,10 @@ func (step *State) CreateStep(
 	if strings.Compare("G37*", *inString) == 0 {
 		// G37 command is found
 		regionOpenedState, err := step.Region.IsRegionOpened()
-		checkError(err, 401)
+		checkError(err)
 		if regionOpenedState == true { // creg is opened
 			err = step.Region.Close(i)
-			checkError(err, 402)
+			checkError(err)
 			step.Region = nil
 		}
 		return SCResultNextString
@@ -176,7 +176,7 @@ func (step *State) CreateStep(
 		strings.HasSuffix(*inString, "D03*") == false &&
 		strings.HasSuffix(*inString, "*") == true &&
 		(strings.HasPrefix(*inString, "X") || strings.HasPrefix(*inString, "Y")) {
-		fmt.Println("Warning! Implicit DRAW command found in " + *inString)
+		glog.Warningln("Implicit DRAW command found in " + *inString)
 		step.Action = OpcodeD01_DRAW
 		*inString = strings.TrimSuffix(*inString, "*") + "D01*"
 	}
@@ -188,11 +188,9 @@ func (step *State) CreateStep(
 		xy := new(XY)
 		abxy := new(XY)
 		s := *inString
-		if xy.Init(s[:len(s)-3], fSpec /*step.PrevCoord*/, prevStep.Coord) != false { // coordinates are recognized successfully
-			//			step.PrevCoord = xy
+		if xy.Init(s[:len(s)-3], fSpec, prevStep.Coord) != false { // coordinates are recognized successfully
 			step.Coord = xy
 			step.OriginForAB = abxy
-			//				fmt.Println("string:", i, "\tcoordinates(X,Y,I,J):", xy.GetX(), xy.GetY(), xy.GetJ(), xy.GetJ())
 			// check if the xy belongs to a region
 			if step.Region != nil {
 				rs, _ := step.Region.IsRegionOpened()
@@ -207,9 +205,7 @@ func (step *State) CreateStep(
 				}
 			}
 		} else {
-			fmt.Println("Error parsing string", i, *inString)
-			panic("310")
-			os.Exit(310)
+			glog.Fatalln("Error parsing string", i, *inString)
 		}
 		if step.SRBlock != nil {
 			step.SRBlock.IncNSteps()
@@ -223,7 +219,7 @@ func (step *State) CreateStep(
 		var tc int
 		step.CurrentAp = nil
 		tc, err := strconv.Atoi(s[1 : len(s)-1])
-		checkError(err, 501)
+		checkError(err)
 		for k := apertList.Front(); k != nil; k = k.Next() {
 			if k.Value.(*Aperture).GetCode() == tc {
 				step.CurrentAp = k.Value.(*Aperture)
@@ -231,39 +227,37 @@ func (step *State) CreateStep(
 			}
 		}
 		if step.CurrentAp == nil {
-			checkError(errors.New("the aperture "+strconv.Itoa(tc)+" does not exist"), 502)
+			checkError(errors.New("the aperture " + strconv.Itoa(tc) + " does not exist"))
 		}
 		return SCResultNextString
 	}
 
 	// + 28-09-2018
 	if strings.HasPrefix(s, "%SRX1Y1I0") {
-		fmt.Println("Step and repeat block ends (%SRX1Y1I0..) at line", i)
-		fmt.Println(step.SRBlock.String())
+		glog.Infoln("\n"+step.SRBlock.String()+"ends at line", i)
 		step.SRBlock = nil
 		return SCResultNextString
 	}
 
 	if strings.HasPrefix(*inString, "%SRX") {
-		fmt.Println("Step and repeat block found at line", i)
+		glog.Infoln("Step and repeat block found at line", i)
 		step.SRBlock = new(srblocks.SRBlock)
 		s := *inString
 		srerr := step.SRBlock.Init(s[3:len(s)-2], fSpec)
-		checkError(srerr, 550)
+		checkError(srerr)
 		//		SRBlocks = append(SRBlocks, srblock)
 		//		srb = srblock
 		return SCResultNextString
 	}
 
 	if strings.HasPrefix(s, "%SR*%") {
-		fmt.Println("Step and repeat block ends at line", i)
-		fmt.Println(step.SRBlock.String())
+		glog.Infoln("\n"+step.SRBlock.String()+"ends at line", i)
 		step.SRBlock = nil
 		return SCResultNextString
 	}
 
 	if strings.Compare(s, "M02*") == 0 || strings.Compare(s, "M00*") == 0 {
-		fmt.Println("Stop found at line", i)
+		glog.Infoln("Stop found at line", i)
 		step.Action = OpcodeStop
 		step.SRBlock = nil // also closes s&r block
 		return SCResultStop
@@ -271,10 +265,9 @@ func (step *State) CreateStep(
 	return SCResultSkipString
 }
 
-func checkError(err error, exitCode int) {
+func checkError(err error) {
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(exitCode)
+		glog.Fatalln(err)
 	}
 }
 
@@ -305,7 +298,6 @@ func CreateStepSequence(src *[]string,
 			step.Coord = nil
 			step.PrevCoord = nil
 		}
-		//		fmt.Printf(">>>>>%v  %v\n", stepNumber, arrayOfSteps[stepNumber])
 		createStepResult := step.CreateStep(&s, (*resSteps)[stepNumber-1], apertl, regl, i, fSpec)
 		switch createStepResult {
 		case SCResultNextString:
@@ -330,7 +322,7 @@ func CreateStepSequence(src *[]string,
 		default:
 			break
 		}
-		fmt.Println("Still unknown command: ", s) // print unknown strings
+		glog.Warningln("Still unknown command: ", s)
 	} // end of input strings parsing
 	return stepNumber
 }

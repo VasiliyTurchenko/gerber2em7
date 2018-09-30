@@ -1,7 +1,6 @@
 package xy
 
 import (
-	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -159,9 +158,6 @@ func (ap *axisPoint) init(ins string, n, m int, s float64) bool {
 	if isNumString(ws) == false {
 		return result
 	}
-	//
-	//	fmt.Println("\taxisPoint.init: input values are ", ins, n, m)
-	//
 	ps := make([]byte, n+m)
 	var inso = len(ps) - len(ws)
 	for i := 0; i < inso; i++ {
@@ -170,9 +166,6 @@ func (ap *axisPoint) init(ins string, n, m int, s float64) bool {
 	for i := inso; i < len(ps); i++ {
 		ps[i] = (byte)(ws[i-inso])
 	}
-
-	//	fmt.Println("\taxisPoint.init: ps ", (string)(ps))
-
 	var ipart int
 	var fpart int
 	var err error
@@ -184,16 +177,13 @@ func (ap *axisPoint) init(ins string, n, m int, s float64) bool {
 	if fpart, err = strconv.Atoi((string)(ps[n : m+n])); err != nil {
 		return false
 	}
-	//	fmt.Println("\taxisPoint.init: int part = ", ap.valI, "; fractional part = ", ap.valF)
 	tmpfloat := float64(fpart) / math.Pow10(m)
 	tmpfloat += float64(ipart)
 	if neg {
 		tmpfloat *= -1.0
 	}
 	ap.valFloat = tmpfloat * float64(s)
-	//	fmt.Println("\taxisPoint.init: float value =", ap.valFloat, "\n")
 	result = true
-	//fExit:
 	return result
 }
 
@@ -219,17 +209,9 @@ func NewXY() *XY {
 	return retVal
 }
 
-func (xy *XY) Print() {
-	fmt.Println("Node #: ", xy.nodeNumber)
-	fmt.Println("\tcurrent object:\t", xy /*, "\n\tprevious one:\t", xy.Prev */)
-	//	fmt.Println("\tString representation: ", xy.CoordString)
-	//	fmt.Println("\tReal coordinates (x,y): ", xy.X.getfval(), ",", xy.Y.getfval())
-	//	fmt.Println("\tReal coordinates (i,j): ", xy.I.getfval(), ",", xy.J.getfval())
-}
-
 func (xy *XY) String() string {
 	// "XY object # nnn : (xxx, yyy)
-	retVal := "XY object " + xy.coordString +" #" +
+	retVal := "XY object " + xy.coordString + " #" +
 		strconv.Itoa(int(xy.nodeNumber)) +
 		": x,y=(" +
 		strconv.FormatFloat(xy.x.getfval(), 'f', 5, 64) +
@@ -296,7 +278,6 @@ func (xy *XY) Init(sc string, fs *FormatSpec, prev *XY) bool {
 	xy.i.clear()
 	xy.j.clear()
 	xy.coordString = strings.ToUpper(sc)
-	//	fmt.Println("XY.Init -> xy.CoordString :", xy.CoordString)
 	xi := fs.ReadXI()
 	xd := fs.ReadXD()
 	masks := []byte{'X', 'Y', 'I', 'J', 'D'}
@@ -304,7 +285,6 @@ func (xy *XY) Init(sc string, fs *FormatSpec, prev *XY) bool {
 	var found int = 0 // found signatures
 	for i := range masks {
 		mpos[i] = strings.IndexByte(xy.coordString, masks[i])
-		//		fmt.Println(masks[i], "at ", mpos[i])
 		if mpos[i] != -1 {
 			found++
 		}

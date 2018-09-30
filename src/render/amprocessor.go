@@ -1042,7 +1042,7 @@ func ExtractAMDefinitions(inStrings *stor.Storage) ([]*ApertureMacro, *stor.Stor
 			var err error
 			apMacroPtr, err := NewApertureMacro(apMacroString)
 			if err != nil {
-				checkError(err, 587)
+				checkError(err)
 			}
 			aMacroDict = append(aMacroDict, apMacroPtr) // store correct aperture
 			apMacroString = ""
