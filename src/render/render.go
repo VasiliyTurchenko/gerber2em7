@@ -740,24 +740,13 @@ func (rc *Render) DrawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm IP
 
 	r = (r + rt) / 2
 
-	cosPhi1 := (x1 - xC) / r
-	if cosPhi1 > 1 {
-		cosPhi1 = 1
-	} else if cosPhi1 < -1 {
-		cosPhi1 = -1
-	}
-
+	cosPhi1 := band((x1 - xC) / r, 1.0)
 	Phi1 := rad2Deg(math.Acos(cosPhi1))
 	if float64(y1)-yC < 0 {
 		Phi1 = 360.0 - Phi1
 	}
 
-	cosPhi2 := (x2 - xC) / r
-	if cosPhi2 > 1 {
-		cosPhi2 = 1
-	} else if cosPhi2 < -1 {
-		cosPhi2 = -1
-	}
+	cosPhi2 := band((x2 - xC) / r, 1.0)
 	Phi2 := rad2Deg(math.Acos(cosPhi2))
 	if float64(y2)-yC < 0 {
 		Phi2 = 360.0 - Phi2
@@ -916,7 +905,7 @@ func (rc *Render) RenderPolygon() {
 			j++
 		}
 		colr := rc.RegionColor
-		if (*rc.PolygonPtr.steps)[0].Polarity == PolTypeClear {
+		if (*rc.PolygonPtr.steps)[0].ApTransParams.Polarity == PolTypeClear {
 			glog.Errorln("Clear polarity is not supported yet.")
 			colr = rc.ClearColor
 		}
@@ -945,24 +934,14 @@ func (rc *Render) interpolate(st *State) {
 	}
 	r = (r + rt) / 2
 
-	cosFi1 := (st.PrevCoord.GetX() - xc) / r
-	if cosFi1 > 1 {
-		cosFi1 = 1
-	} else if cosFi1 < -1 {
-		cosFi1 = -1
-	}
+	cosFi1 := band((st.PrevCoord.GetX() - xc) / r, 1.0)
 
 	fi1 := rad2Deg(math.Acos(cosFi1))
 	if st.PrevCoord.GetY()-yc < 0 {
 		fi1 = 360.0 - fi1
 	}
 
-	cosFi2 := (st.Coord.GetX() - xc) / r
-	if cosFi2 > 1 {
-		cosFi2 = 1
-	} else if cosFi2 < -1 {
-		cosFi2 = -1
-	}
+	cosFi2 := band((st.Coord.GetX() - xc) / r, 1.0)
 	fi2 := rad2Deg(math.Acos(cosFi2))
 	if st.Coord.GetY()-yc < 0 {
 		fi2 = 360.0 - fi2

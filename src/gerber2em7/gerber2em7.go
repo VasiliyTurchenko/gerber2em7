@@ -246,7 +246,7 @@ func Main() {
 		aperturesList,
 		regionsList,
 		fSpec)
-	arrayOfSteps = arrayOfSteps[:numberOfSteps]
+	arrayOfSteps = arrayOfSteps[1:numberOfSteps]
 
 	/* ------------------ aperture blocks to steps ---------------------------*/
 	// each D03 must be checked against aperture block
@@ -257,7 +257,7 @@ func Main() {
 	for {
 		touch := false
 		arrayOfSteps2 := make([]*render.State, 0)
-		for k := 1; k < len(arrayOfSteps); k++ {
+		for k := 0; k < len(arrayOfSteps); k++ {
 			if arrayOfSteps[k].CurrentAp != nil &&
 				arrayOfSteps[k].CurrentAp.Type == AptypeBlock &&
 				arrayOfSteps[k].Action == OpcodeD03_FLASH {
@@ -265,7 +265,8 @@ func Main() {
 					if i == 0 { // skip root element
 						continue
 					}
-					newStep := new(render.State)
+//					newStep := new(render.State)
+					newStep := render.NewState()
 					newStep.CopyOfWithOffset(bs, arrayOfSteps[k].Coord.GetX(), arrayOfSteps[k].Coord.GetY())
 					if i == 1 {
 						newStep.PrevCoord = arrayOfSteps[k].PrevCoord
@@ -296,7 +297,8 @@ func Main() {
 			lenTail := len(arrayOfSteps) - tailI
 			tail := make ([]*render.State, lenTail)
 			for j := 0 ; j < lenTail ; j++ {
-				tail[j] = new(render.State)
+//				tail[j] = new(render.State)
+				tail[j] = render.NewState()
 				tail[j].CopyOfWithOffset(arrayOfSteps[tailI + j], 0, 0)
 			}
 			arrayOfSteps = arrayOfSteps[:i]
@@ -370,7 +372,8 @@ func Main() {
 		if arrayOfSteps[k].Action == OpcodeStop {
 			break
 		}
-		ProcessStep(arrayOfSteps[k])
+//		ProcessStep(arrayOfSteps[k])
+		arrayOfSteps[k].Render(renderContext)
 		k++
 	}
 
@@ -656,7 +659,7 @@ func ProcessStep(stepData *render.State) {
 		var stepColor color.RGBA
 		switch stepData.Action {
 		case OpcodeD01_DRAW: // draw
-			if stepData.Polarity == PolTypeDark {
+			if stepData.ApTransParams.Polarity == PolTypeDark {
 				stepColor = renderContext.LineColor
 			} else {
 				stepColor = renderContext.ClearColor
@@ -670,12 +673,16 @@ func ProcessStep(stepData *render.State) {
 				// linear interpolation
 				if renderContext.DrawOnlyRegionsMode != true {
 					if stepData.CurrentAp.Type == AptypeCircle {
-						apertureSize = transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
+//						apertureSize = transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
+						apertureSize = transformCoord(stepData.CurrentAp.Diameter * stepData.ApTransParams.Scale,
+							renderContext.XRes)
 						renderContext.DrawByCircleAperture(Xp, Yp, Xc, Yc, apertureSize, stepColor)
 					} else if stepData.CurrentAp.Type == AptypeRectangle {
 						// draw with rectangle aperture
-						w := transformCoord(stepData.CurrentAp.XSize, renderContext.XRes)
-						h := transformCoord(stepData.CurrentAp.YSize, renderContext.YRes)
+						w := transformCoord(stepData.CurrentAp.XSize * stepData.ApTransParams.Scale,
+							renderContext.XRes)
+						h := transformCoord(stepData.CurrentAp.YSize * stepData.ApTransParams.Scale,
+							renderContext.YRes)
 						renderContext.DrawByRectangleAperture(Xp, Yp, Xc, Yc, w, h, stepColor)
 					} else {
 						glog.Fatalln("Error. Only solid drawCircle and solid rectangle may be used to draw.")
@@ -686,7 +693,8 @@ func ProcessStep(stepData *render.State) {
 				// non-linear interpolation
 				if renderContext.DrawOnlyRegionsMode != true {
 					if stepData.CurrentAp.Type == AptypeCircle {
-						apertureSize = transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
+						apertureSize = transformCoord(stepData.CurrentAp.Diameter * stepData.ApTransParams.Scale,
+						renderContext.XRes)
 						var (
 							fXp, fYp float64
 						)
@@ -736,7 +744,7 @@ func ProcessStep(stepData *render.State) {
 		case OpcodeD03_FLASH: // flash
 			if renderContext.DrawOnlyRegionsMode != true {
 				renderContext.MovePen(Xp, Yp, Xc, Yc, renderContext.MovePenColor)
-				if stepData.Polarity == PolTypeDark {
+				if stepData.ApTransParams.Polarity == PolTypeDark {
 					stepData.CurrentAp.Render(Xc, Yc, renderContext)
 				} else {
 					glog.Errorln("Flash by clear polarity is not supported yet.")

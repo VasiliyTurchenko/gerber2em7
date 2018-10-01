@@ -1305,6 +1305,7 @@ func convertToFloat(arg interface{}, params []float64) float64 {
 	return 0
 }
 
+// limits arg by bandVal with respect of sign arg
 func band(arg, bandVal float64) float64 {
 	if arg > bandVal {
 		arg = bandVal

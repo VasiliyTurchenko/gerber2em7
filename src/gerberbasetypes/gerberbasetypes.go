@@ -127,3 +127,28 @@ func (ipm IPmode) String() string {
 	}
 	return "Unknown interpolation"
 }
+
+type Mirror int
+
+const (
+	NoMirror Mirror = iota + 1
+	MirrorX
+	MirrorY
+	MirrorXY
+)
+
+func (m Mirror) String() string {
+	switch m {
+	case NoMirror:
+		return "No mirroring"
+	case MirrorX:
+		return "Mirroring X"
+	case MirrorY:
+		return "Mirroring Y"
+	case MirrorXY:
+		return "Mirroring X,Y"
+	default:
+
+	}
+	return "Unknown mirroring type"
+}
