@@ -178,7 +178,7 @@ func (rc *Render) setPoint(x, y, pointSize int, col color.Color) {
 	if pointSize < 0 {
 		return
 	}
-	pointSize = pointSize / 2 + pointSize % 2
+	pointSize = pointSize/2 + pointSize%2
 	// actually does not draw filled circle but only cirle line
 	if rc.DrawContours == false {
 		// Draw by bresenham algorithm
@@ -875,9 +875,8 @@ type Polygon struct {
 	steps       *[]*State
 	polX        *[]float64
 	polY        *[]float64
-	numVertices int
-	id			int
-
+//	numVertices int
+	id          int
 }
 
 func NewPolygon(id int) *Polygon {
@@ -898,58 +897,31 @@ func (rc *Render) AddStepToPolygon(step *State) int {
 }
 
 func (rc *Render) RenderPolygon() {
-
-	if (*rc.PolygonPtr.steps)[0].Action == OpcodeD02_MOVE {
-		*rc.PolygonPtr.steps = (*rc.PolygonPtr.steps)[1:]
-	}
-//	prev := (*rc.PolygonPtr.steps)[0].PrevCoord
-	// check if the region contains self-intersections or is not closed
-
-//	for i := 0; i < len(*rc.PolygonPtr.steps); i++ {
-/*
-		if (*rc.PolygonPtr.steps)[i].Coord.Equals(prev, 0.001) {
-			if rc.PrintRegionInfo == true {
-				fmt.Println("Closed segment found with  ", i, "vertexes")
+	j := 0
+	for j < len(*rc.PolygonPtr.steps) {
+		*rc.PolygonPtr.polX = (*rc.PolygonPtr.polX)[:0]
+		*rc.PolygonPtr.polY = (*rc.PolygonPtr.polY)[:0]
+		if (*rc.PolygonPtr.steps)[0].Action == OpcodeD02_MOVE {
+			j++
+		}
+		for j < len(*rc.PolygonPtr.steps) && (*rc.PolygonPtr.steps)[j].Action != OpcodeD02_MOVE  {
+			if (*rc.PolygonPtr.steps)[j].IpMode != IPModeLinear {
+				rc.interpolate((*rc.PolygonPtr.steps)[j])
+			} else {
+				xj := ((*rc.PolygonPtr.steps)[j].Coord.GetX() - rc.MinX) / rc.XRes
+				yj := ((*rc.PolygonPtr.steps)[j].Coord.GetY() - rc.MinY) / rc.YRes
+				*rc.PolygonPtr.polX = append(*rc.PolygonPtr.polX, xj)
+				*rc.PolygonPtr.polY = append(*rc.PolygonPtr.polY, yj)
 			}
-			if i < len(*rc.PolygonPtr.steps)-2 {
-				fmt.Println("More than one segment found in the region " + strconv.Itoa(rc.PolygonPtr.id) +
-				"; there is", (len(*rc.PolygonPtr.steps) - 2 - i), "points are left out.")
-				fmt.Println((*rc.PolygonPtr.steps)[0].Coord.String())
-			}
-			break
+			j++
 		}
-*/
-/*
-		if i == len(*rc.PolygonPtr.steps)-1 {
-			// the segment is not closed!
-			fmt.Println("The segment is not closed!")
-			fmt.Println(prev.String())
-			fmt.Println((*rc.PolygonPtr.steps)[0].Coord.String())
-			fmt.Println((*rc.PolygonPtr.steps)[len(*rc.PolygonPtr.steps)-2].Coord.String())
-			fmt.Println((*rc.PolygonPtr.steps)[len(*rc.PolygonPtr.steps)-1].Coord.String())
-			os.Exit(1000)
+		colr := rc.RegionColor
+		if (*rc.PolygonPtr.steps)[0].Polarity == PolTypeClear {
+			glog.Errorln("Clear polarity is not supported yet.")
+			colr = rc.ClearColor
 		}
-*/
-//	}
-
-	// let's create a array of nodes (vertices)
-	rc.PolygonPtr.numVertices = len(*rc.PolygonPtr.steps)
-	for j := 0; j < rc.PolygonPtr.numVertices; j++ {
-		if (*rc.PolygonPtr.steps)[j].IpMode != IPModeLinear {
-			rc.interpolate((*rc.PolygonPtr.steps)[j])
-		} else {
-			xj := ((*rc.PolygonPtr.steps)[j].Coord.GetX() - rc.MinX) / rc.XRes
-			yj := ((*rc.PolygonPtr.steps)[j].Coord.GetY() - rc.MinY) / rc.YRes
-			*rc.PolygonPtr.polX = append(*rc.PolygonPtr.polX, xj)
-			*rc.PolygonPtr.polY = append(*rc.PolygonPtr.polY, yj)
-		}
+		rc.RenderOutline(rc.PolygonPtr.polX, rc.PolygonPtr.polY, colr)
 	}
-	rc.PolygonPtr.numVertices = len(*rc.PolygonPtr.polX)
-	colr := rc.RegionColor
-	if (*rc.PolygonPtr.steps)[0].Polarity == PolTypeClear {
-		colr = rc.ClearColor
-	}
-	rc.RenderOutline(rc.PolygonPtr.polX, rc.PolygonPtr.polY, colr)
 	return
 }
 
@@ -969,7 +941,7 @@ func (rc *Render) interpolate(st *State) {
 	dr := rt - r
 
 	if math.Abs(dr) > rc.PointSize {
-		glog.Fatalln("(rc *Render) interpolate(): Deviation more than pointSize.", "G75 diff.=", rt-r )
+		glog.Fatalln("(rc *Render) interpolate(): Deviation more than pointSize.", "G75 diff.=", rt-r)
 	}
 	r = (r + rt) / 2
 
@@ -997,7 +969,7 @@ func (rc *Render) interpolate(st *State) {
 	}
 
 	if st.IpMode == IPModeCCwC {
-		if fi1 > fi2 {
+		if fi1 >= fi2 {
 			fi1 = -(360.0 - fi1)
 		}
 
@@ -1012,7 +984,7 @@ func (rc *Render) interpolate(st *State) {
 			}
 		}
 	} else if st.IpMode == IPModeCwC {
-		if fi1 < fi2 {
+		if fi1 <= fi2 {
 			fi2 = -(360.0 - fi2)
 		}
 		angle := fi1
@@ -1059,7 +1031,6 @@ func transformCoord(inc float64, res float64) int {
 func transformFloatCoord(inc float64, res float64) float64 {
 	return inc / res
 }
-
 
 // renders an outline (a.k.a. polygon).
 // edges are straight lines
