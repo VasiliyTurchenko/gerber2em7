@@ -89,11 +89,29 @@ func (apert *Aperture) Render(xC int, yC int, render *Render) {
 			if w == h {
 				render.DrawDonut(xC, yC, w, hd, render.ApColor)
 			} else {
+				if hd != 0 {
+					glog.Error("Obround apertures with holes ain't supported.\n" + apert.String())
+				}
 				render.DrawObRound(xC, yC, w, h, 0, render.ObRoundColor)
 			}
 		case AptypePoly:
-			render.DrawDonut(xC, yC, d, hd, render.MissedColor)
-			glog.Errorln("Polygonal apertures ain't supported.")
+			//			render.DrawDonut(xC, yC, d, hd, render.MissedColor)
+			if hd != 0 {
+				glog.Error("Polygonal apertures with holes ain't supported.\n" + apert.String())
+			}
+			polyAperture := ApertureMacro{"Poly", []string{},
+				[]AMVariable{},
+				[]AMPrimitive{AMPrimitivePolygon{AMPrimitive_Polygon,
+					[]interface{}{1.0,
+						float64(apert.Vertices),
+						0.0,
+						0.0,
+						float64(apert.Diameter),
+						float64(apert.RotAngle),
+						float64(apert.HoleDiameter)}},
+				}}
+			polyAperture.Render(xC, yC, render)
+
 		default:
 			checkError(errors.New("bad aperture type found"))
 			break

@@ -30,9 +30,6 @@ import (
 	glog "glog_t"
 )
 
-// TODO get rid of it
-//var verboseLevel = flag.Int("v", 3, "verbose level: 0 - minimal, 3 - maximal")
-
 var (
 
 	// configuration base
@@ -230,7 +227,11 @@ func Main() {
 	//  Aperture blocks must be converted to the steps w/o AB
 	//  S&R blocks and regions inside each instance of AB added to the global lists!
 	for apBlock := range apertureBlocks {
-		bsn := render.CreateStepSequence(&apertureBlocks[apBlock].BodyStrings, &apertureBlocks[apBlock].StepsPtr, aperturesList, regionsList, fSpec)
+		bsn := render.CreateStepSequence(&apertureBlocks[apBlock].BodyStrings,
+			&apertureBlocks[apBlock].StepsPtr,
+			aperturesList,
+			regionsList,
+			fSpec)
 		apertureBlocks[apBlock].StepsPtr = apertureBlocks[apBlock].StepsPtr[:bsn]
 	}
 
@@ -240,7 +241,11 @@ func Main() {
 	// TODO get rid of the patch!
 	gerberStringsArray := gerberStrings.ToArray()
 
-	numberOfSteps := render.CreateStepSequence(&gerberStringsArray, &arrayOfSteps, aperturesList, regionsList, fSpec)
+	numberOfSteps := render.CreateStepSequence(&gerberStringsArray,
+		&arrayOfSteps,
+		aperturesList,
+		regionsList,
+		fSpec)
 	arrayOfSteps = arrayOfSteps[:numberOfSteps]
 
 	/* ------------------ aperture blocks to steps ---------------------------*/
@@ -378,11 +383,9 @@ func Main() {
 		glog.Infoln("The plotter have drawn", renderContext.ObRoundCounter, "obrounds (boxes)")
 		glog.Infoln("The plotter have moved pen", renderContext.MovePenCounters, "times")
 		glog.Infof("%s%.0f%s", "Total move distance = ", renderContext.MovePenDistance*renderContext.XRes, " mm\n")
-
 	}
 
 	if renderContext.YNeedsFlip == true {
-
 		glog.Infoln(timeInfo(timeStamp) + "Started flipping (only png image) over X-axis")
 		imgLines := renderContext.Img.Bounds().Max.Y - renderContext.Img.Bounds().Min.Y
 		pixelsInLine := renderContext.Img.Bounds().Max.X - renderContext.Img.Bounds().Min.X
@@ -414,9 +417,7 @@ func Main() {
 
 	glog.Infoln(timeInfo(timeStamp)+"Saving plotter commands stream to file")
 	plotterInstance.Stop()
-
 	glog.Infoln(timeInfo(timeStamp) + "Plotter commands are saved to the file", viperConfig.GetString(configurator.CfgPlotterOutFile))
-
 	glog.Exitln(timeInfo(timeStamp) + "Exiting")
 }
 
@@ -506,34 +507,8 @@ func saveIntermediate(storage *stor.Storage, fileName string) {
 //		panic(err)
 		glog.Fatalln(err)
 	}
+	glog.Infoln("Intermediate file "+ fileName +" is saved.")
 }
-
-//
-//func splitString(rawString string) *[]string {
-//	// split concatenated command string AAAAAD01*BBBBBBD02*GNN*D03*etc
-//	splittedStrings := make([]string, 0)
-//	if (strings.HasPrefix(rawString, "%") && strings.HasSuffix(rawString, "%")) ||
-//		strings.HasPrefix(rawString, "G04") {
-//		// do not split
-//		splittedStrings = append(splittedStrings, rawString)
-//	} else {
-//		for _, tmpSplitted := range strings.SplitAfter(rawString, "*") {
-//			if len(tmpSplitted) > 0 {
-//				for {
-//					n := strings.IndexByte(tmpSplitted, 'G')
-//					if n == -1 {
-//						splittedStrings = append(splittedStrings, tmpSplitted)
-//						break
-//					} else {
-//						splittedStrings = append(splittedStrings, tmpSplitted[n:n+3]+"*")
-//						tmpSplitted = tmpSplitted[n+3:]
-//					}
-//				}
-//			}
-//		}
-//	}
-//	return &splittedStrings
-//}
 
 func printSqueezedOut(str string) {
 	if viperConfig.GetBool(configurator.CfgCommonPrintGerberComments) == true {
@@ -688,9 +663,9 @@ func ProcessStep(stepData *render.State) {
 			}
 
 			var apertureSize int
-			if abs(Xc-Xp) < (4*renderContext.PointSizeI) && abs(Yc-Yp) < (4*renderContext.PointSizeI) {
-				stepData.IpMode = IPModeLinear
-			}
+			//if abs(Xc-Xp) < (4*renderContext.PointSizeI) && abs(Yc-Yp) < (4*renderContext.PointSizeI) {
+			//	stepData.IpMode = IPModeLinear
+			//}
 			if stepData.IpMode == IPModeLinear {
 				// linear interpolation
 				if renderContext.DrawOnlyRegionsMode != true {
@@ -764,7 +739,7 @@ func ProcessStep(stepData *render.State) {
 				if stepData.Polarity == PolTypeDark {
 					stepData.CurrentAp.Render(Xc, Yc, renderContext)
 				} else {
-					glog.Errorln("Clear polarity is not supported.")
+					glog.Errorln("Flash by clear polarity is not supported yet.")
 				}
 
 			}
@@ -807,7 +782,6 @@ func checkError(err error) {
 
 func TokenizeGerber(buf *[]byte) *[]string {
 	retVal := make([]string, 0)
-
 	/*
 		1. if we met '%', all the bytes until next '%' stay unchanged.
 		Leading and trailing '%' are included in the out string
@@ -845,7 +819,7 @@ func TokenizeGerber(buf *[]byte) *[]string {
 			continue
 		}
 		if (*buf)[a] != '*' {
-			trailerFound := false
+				trailerFound := false
 			// scan for trailing '*'
 			start := a
 			a++
@@ -861,7 +835,27 @@ func TokenizeGerber(buf *[]byte) *[]string {
 				a++
 			}
 			filtered := FilterNewLines(string((*buf)[start:a]))
-			retVal = append(retVal, filtered)
+
+			// fix G75G03X0Y0D03* case
+			if strings.HasPrefix(filtered, "G04") == false &&
+				strings.HasPrefix(filtered, "G4") == false {
+				for {
+					if len(filtered) > 4 &&	filtered[0] == 'G' && filtered[3] != '*' {
+							retVal = append(retVal, filtered[:3]+"*")
+							filtered = filtered[3:]
+							continue
+						}
+					//if len(filtered) > 3 && filtered[0] == 'G' && filtered[2] != '*' {
+					//		retVal = append(retVal, filtered[:2]+"*")
+					//		filtered = filtered[2:]
+					//		continue
+					//	}
+					retVal = append(retVal, filtered)
+					break
+				}
+			} else {
+				retVal = append(retVal, filtered)
+			}
 			continue
 		} else {
 			a++

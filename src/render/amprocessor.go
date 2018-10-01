@@ -614,7 +614,7 @@ func (amp AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
 	ringsCount := 0
 	ring := AMPrimitiveCircle{AMPrimitive_Circle, []interface{}{}}
 	for ringsCount < maxNumRings {
-		ring.AMModifiers = append(ring.AMModifiers, 1)                            // polarity
+		ring.AMModifiers = append(ring.AMModifiers, 1.0)                            // polarity
 		ring.AMModifiers = append(ring.AMModifiers, outerDia)                     // outer diameter
 		ring.AMModifiers = append(ring.AMModifiers, amp.AMModifiers[0].(float64)) // center X
 		ring.AMModifiers = append(ring.AMModifiers, amp.AMModifiers[1].(float64)) // center Y
@@ -633,7 +633,7 @@ func (amp AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
 	if (xHairThickness != 0) && (xHairLen != 0) {
 		vectLine := AMPrimitiveVectLine{AMPrimitive_VectLine, []interface{}{}}
 		//	"Exposure", "Width", "Start X", "Start Y", "End X", "End Y", "Rotation"
-		vectLine.AMModifiers = append(vectLine.AMModifiers, 1)                                       // polarity
+		vectLine.AMModifiers = append(vectLine.AMModifiers, 1.0)                                       // polarity
 		vectLine.AMModifiers = append(vectLine.AMModifiers, xHairThickness)                          // width
 		vectLine.AMModifiers = append(vectLine.AMModifiers, amp.AMModifiers[0].(float64)-xHairLen/2) // start X
 		vectLine.AMModifiers = append(vectLine.AMModifiers, amp.AMModifiers[1].(float64))            // start Y
@@ -1167,7 +1167,7 @@ func (apert *Aperture) Init2(code int, name string, def string, scale float64) e
 			tmpSplitted[j] = strings.TrimSpace(tmpSplitted[j])
 		}
 	} else {
-		tmpSplitted = append(tmpSplitted, def)
+		tmpSplitted = append(tmpSplitted, strings.TrimSpace(def))
 	}
 	switch name[0] {
 	case 'C':

@@ -90,17 +90,8 @@ func (srblock *SRBlock) Init(ins string, fs *FormatSpec) error {
 	return nil
 }
 
-//func (srblock *SRBlock) StartXY() *XY {
-//	return srblock.startXY
-//}
-//
-//func (srblock *SRBlock) SetStartXY(v *XY) {
-//	srblock.startXY = v
-//}
-
 // the function splits the input string by substrings using template's symbols as ordered delimiters and returns
 // a map symbol:value
-
 func ExtractLetterDelimitedFloats(ins, template string) (out map[byte]float64, err error) {
 
 	out = make(map[byte]float64)

@@ -141,7 +141,7 @@ func (rc *Render) Init(plt *plotter.PlotterParams, viper *viper.Viper, minX, min
 	rc.ClearColor = color.RGBA{255, 255, 0, 255}
 	rc.ObRoundColor = color.RGBA{0, 127, 0, 255}
 	rc.MovePenColor = color.RGBA{100, 100, 100, 255}
-	rc.MissedColor = color.RGBA{255, 0, 255, 255}
+	rc.MissedColor = color.RGBA{127, 127, 255, 255}
 	rc.ContourColor = color.RGBA{0, 255, 0, 255}
 
 	rc.Plt = plt
@@ -706,7 +706,6 @@ func (rc *Render) bresenhamWithPattern(x1, y1, x2, y2, pointSize int, col color.
 }
 
 // ARC functions
-// TODO test G:\gerbv-2.6.2\example\cslk fails!
 func (rc *Render) DrawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm IPmode, qm QuadMode, col color.Color) error {
 
 	var xC, yC float64
@@ -772,7 +771,7 @@ func (rc *Render) DrawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm IP
 		if ipm == IPModeCCwC {
 			var ppx = 0
 			var ppy = 0
-			if Phi1 > Phi2 {
+			if Phi1 >= Phi2 {
 				Phi1 = -(360.0 - Phi1)
 			}
 			plX1 := int(math.Round(x1))
@@ -803,7 +802,7 @@ func (rc *Render) DrawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm IP
 		} else if ipm == IPModeCwC {
 			var ppx = 0
 			var ppy = 0
-			if Phi1 < Phi2 {
+			if Phi1 <= Phi2 {
 				Phi2 = -(360.0 - Phi2)
 			}
 

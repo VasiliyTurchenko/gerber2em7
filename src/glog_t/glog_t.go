@@ -549,7 +549,7 @@ func (l *loggingT) header(s severity, depth int) (*buffer, string, int) {
 // formatHeader formats a log header using the provided file name and line number.
 func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 
-	monthStr := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",}
+	monthStr := []string{"", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",}
 	sevStr := []string{"INFO ", "WARN ", "ERROR", "FATAL", "EXIT "}
 
 	now := timeNow()

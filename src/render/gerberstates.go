@@ -234,7 +234,7 @@ func (step *State) CreateStep(
 
 	// + 28-09-2018
 	if strings.HasPrefix(s, "%SRX1Y1I0") {
-		glog.Infoln("\n"+step.SRBlock.String()+"ends at line", i)
+		glog.Infoln(step.SRBlock.String()+"ends at line", i)
 		step.SRBlock = nil
 		return SCResultNextString
 	}
@@ -262,6 +262,8 @@ func (step *State) CreateStep(
 		step.SRBlock = nil // also closes s&r block
 		return SCResultStop
 	}
+
+	glog.Warningln("skipped: " + *inString)
 	return SCResultSkipString
 }
 
@@ -322,7 +324,7 @@ func CreateStepSequence(src *[]string,
 		default:
 			break
 		}
-		glog.Warningln("Still unknown command: ", s)
+//		glog.Warningln("Still unknown command: ", s)
 	} // end of input strings parsing
 	return stepNumber
 }

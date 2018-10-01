@@ -169,7 +169,9 @@ func (plotter *PlotterParams) Circle(xc, yc, r int) string {
 func (plotter *PlotterParams) Arc(x0, y0, x1, y1, radius, fi0, fi1 int, ipm IPmode) string {
 	var retVal string
 	if (plotter.currentPosX != x0) || (plotter.currentPosY != y0) {
-		glog.Error("Arc. Position discrepance detected!")
+		glog.Error("Arc position discrepance: (currX, currY) (x0, y0) (" +
+			strconv.Itoa(plotter.currentPosX) + "," + strconv.Itoa(plotter.currentPosY) + ") (" +
+			strconv.Itoa(x0) + "," + strconv.Itoa(y0) + ")")
 		retVal = plotter.moveTo(x0, y0)
 		plotter.outStringBuffer = append(plotter.outStringBuffer, retVal)
 	}
