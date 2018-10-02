@@ -29,6 +29,12 @@ const (
 	CfgPrintRegionInfo       string = "renderer.PrintRegionInfo"
 )
 
+const (
+	CfgFoldersPlotterFilesFolder string = "folders.PlotterFilesFolder"
+	CfgFoldersIntermediateFilesFolder string = "folders.IntermediateFilesFolder"
+	CfgFoldersPNGFilesFolder string  ="folders.PNGFilesFolder"
+)
+
 func SetDefaults(v *viper.Viper) {
 	v.SetConfigName("config") // no need to include file extension
 	v.AddConfigPath(".")      // set the path of your config file
@@ -65,6 +71,15 @@ func SetDefaults(v *viper.Viper) {
 	v.SetDefault(CfgPlotterYRes, 0.025)
 	v.SetDefault(CfgPlotterOutFile, "plotter.out")
 
+/*
+[folders]
+PlotterFilesFolder = "G:\go_prj\gerber2em7\plt"
+IntermediateFilesFolder = "G:\go_prj\gerber2em7\tmp"
+PNGFilesFolder = "G:\go_prj\gerber2em7\png"
+ */
+	v.SetDefault(CfgFoldersPlotterFilesFolder, "")
+	v.SetDefault(CfgFoldersIntermediateFilesFolder, "")
+	v.SetDefault(CfgFoldersPNGFilesFolder, "")
 }
 
 func ProcessConfigFile(v *viper.Viper) error {

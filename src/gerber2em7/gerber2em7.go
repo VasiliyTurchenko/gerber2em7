@@ -24,11 +24,13 @@ import (
 
 import (
 	. "gerberbasetypes"
+	glog "glog_t"
 	"plotter"
 	"render"
 	. "xy"
-	glog "glog_t"
 )
+
+import "versiongenerator"
 
 var (
 
@@ -59,9 +61,6 @@ var (
 	//render context
 	renderContext *render.Render
 
-	// aperture macro dictionary
-	// see in the package render
-	//aMacroDict []*render.ApertureMacro
 )
 
 func init() {
@@ -78,6 +77,8 @@ func Main() {
 
 	var sourceFileName string
 	flag.StringVar(&sourceFileName, "i", "", "input file")
+
+
 
 	flag.Set("stderrthreshold", "ERROR")
 	flag.Set("alsologtostderr", "true")
@@ -109,7 +110,11 @@ func Main() {
 	}
 	timeStamp := time.Now()
 
-	glog.Infoln(timeInfo(timeStamp) + "input file:", sourceFileName)
+	glog.Infoln(timeInfo(timeStamp)+"input file:", sourceFileName)
+
+	glog.Infoln("folders.PlotterFilesFolder = " + viperConfig.Get(configurator.CfgFoldersPlotterFilesFolder).(string))
+	glog.Infoln("folders.IntermediateFilesFolder = " + viperConfig.Get(configurator.CfgFoldersIntermediateFilesFolder).(string))
+	glog.Infoln("folders.IntermediateFilesFolder = "+ viperConfig.Get(configurator.CfgFoldersPNGFilesFolder).(string))
 
 	/*
 	   Process input string
@@ -125,12 +130,12 @@ func Main() {
 		checkError(err)
 	}
 	splittedString := TokenizeGerber(&content)
-		// feed the storage
-		for _, str := range *splittedString {
-			gerberStrings.Accept(squeezeString(strings.ToUpper(str)))
-		}
+	// feed the storage
+	for _, str := range *splittedString {
+		gerberStrings.Accept(squeezeString(strings.ToUpper(str)))
+	}
 	// save splitted strings to a file
-	saveIntermediate(gerberStrings, "splitted.txt")
+	saveIntermediate(gerberStrings, "pure_gerber.txt")
 
 	// search for format definition strings
 	mo, err := searchMO(gerberStrings)
@@ -172,7 +177,7 @@ func Main() {
 		if strings.Compare(gerberString, GerberApertureBlockDefEnd) == 0 {
 			lastOpenedAB := len(apertureBlockOpened) - 1
 			if lastOpenedAB < 0 {
-//				panic("No more open aperture blocks left!")
+				//				panic("No more open aperture blocks left!")
 				glog.Fatalln("No more open aperture blocks left!")
 			}
 			aperture := new(render.Aperture)
@@ -265,7 +270,6 @@ func Main() {
 					if i == 0 { // skip root element
 						continue
 					}
-//					newStep := new(render.State)
 					newStep := render.NewState()
 					newStep.CopyOfWithOffset(bs, arrayOfSteps[k].Coord.GetX(), arrayOfSteps[k].Coord.GetY())
 					if i == 1 {
@@ -295,11 +299,11 @@ func Main() {
 		if arrayOfSteps[i].SRBlock != nil {
 			insert, tailI := render.UnwindSRBlock(&arrayOfSteps, i)
 			lenTail := len(arrayOfSteps) - tailI
-			tail := make ([]*render.State, lenTail)
-			for j := 0 ; j < lenTail ; j++ {
-//				tail[j] = new(render.State)
+			tail := make([]*render.State, lenTail)
+			for j := 0; j < lenTail; j++ {
+				//				tail[j] = new(render.State)
 				tail[j] = render.NewState()
-				tail[j].CopyOfWithOffset(arrayOfSteps[tailI + j], 0, 0)
+				tail[j].CopyOfWithOffset(arrayOfSteps[tailI+j], 0, 0)
 			}
 			arrayOfSteps = arrayOfSteps[:i]
 			arrayOfSteps = append(arrayOfSteps, *insert...)
@@ -357,7 +361,7 @@ func Main() {
 	*/
 	plotterInstance = plotter.NewPlotter()
 	plotterInstance.TakePen(1)
-	plotterInstance.SetOutFileName(viperConfig.GetString(configurator.CfgPlotterOutFile))
+	plotterInstance.SetOutFileName(viperConfig.GetString(configurator.CfgFoldersPlotterFilesFolder) + "\\" + viperConfig.GetString(configurator.CfgPlotterOutFile))
 	renderContext = render.NewRender(plotterInstance, viperConfig, minX, minY, maxX, maxY)
 	glog.Infof("Min. X, Y found: (%f,%f)\n", minX, minY)
 	glog.Infof("Max. X, Y found: (%f,%f)\n", maxX, maxY)
@@ -372,7 +376,7 @@ func Main() {
 		if arrayOfSteps[k].Action == OpcodeStop {
 			break
 		}
-//		ProcessStep(arrayOfSteps[k])
+		//		ProcessStep(arrayOfSteps[k])
 		arrayOfSteps[k].Render(renderContext)
 		k++
 	}
@@ -402,25 +406,27 @@ func Main() {
 		}
 	}
 
-
-	glog.Infoln(timeInfo(timeStamp)+ "Rendering process finished")
+	glog.Infoln(timeInfo(timeStamp) + "Rendering process finished")
 
 	// Save to out.png
 	if viperConfig.GetBool(configurator.CfgRendererGeneratePNG) == true {
 		printMemUsage("Memory usage before png encoding:")
 
-		glog.Infoln(timeInfo(timeStamp) +"Generating png image ", renderContext.Img.Bounds().String())
-		f, _ := os.OpenFile("G:\\go_prj\\gerber2em7\\src\\out.png", os.O_WRONLY|os.O_CREATE, 0600)
+		glog.Infoln(timeInfo(timeStamp)+"Generating png image ", renderContext.Img.Bounds().String())
+//viperConfig.Get(configurator.CfgFoldersPNGFilesFolder).(string)
+		ofname := viperConfig.Get(configurator.CfgFoldersPNGFilesFolder).(string) + "\\" + viperConfig.GetString(configurator.CfgRendererOutFile)
+		f, _ := os.OpenFile(ofname, os.O_WRONLY|os.O_CREATE, 0600)
 		defer f.Close()
 		png.Encode(f, renderContext.Img)
 
-		glog.Infoln(timeInfo(timeStamp)+"Image is saved to the file", viperConfig.GetString(configurator.CfgRendererOutFile))
+		glog.Infoln(timeInfo(timeStamp)+"Image is saved to the file", ofname)
 		printMemUsage("Memory usage after png encoding:")
 	}
 
-	glog.Infoln(timeInfo(timeStamp)+"Saving plotter commands stream to file")
+	glog.Infoln(timeInfo(timeStamp) + "Saving plotter commands stream to file")
 	plotterInstance.Stop()
-	glog.Infoln(timeInfo(timeStamp) + "Plotter commands are saved to the file", viperConfig.GetString(configurator.CfgPlotterOutFile))
+	glog.Infoln(timeInfo(timeStamp)+"Plotter commands are saved to the file",
+		viperConfig.GetString(configurator.CfgFoldersPlotterFilesFolder) + "\\" + viperConfig.GetString(configurator.CfgPlotterOutFile))
 	glog.Exitln(timeInfo(timeStamp) + "Exiting")
 }
 
@@ -479,15 +485,17 @@ func saveIntermediate(storage *stor.Storage, fileName string) {
 		return
 	}
 
+	fileName = viperConfig.Get(configurator.CfgFoldersIntermediateFilesFolder).(string) + "\\"+ fileName
+
 	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
-//		panic(err)
+		//		panic(err)
 		glog.Fatalln(err)
 	}
 	defer file.Close()
 	err = file.Truncate(0)
 	if err != nil {
-//		panic(err)
+		//		panic(err)
 		glog.Fatalln(err)
 	}
 	storage.ResetPos()
@@ -501,16 +509,16 @@ func saveIntermediate(storage *stor.Storage, fileName string) {
 		_, err = file.WriteString(str + "\n")
 		if err != nil {
 			glog.Fatalln(err)
-//			panic(err)
+			//			panic(err)
 		}
 	}
 	file.Sync()
 	err = file.Close()
 	if err != nil {
-//		panic(err)
+		//		panic(err)
 		glog.Fatalln(err)
 	}
-	glog.Infoln("Intermediate file "+ fileName +" is saved.")
+	glog.Infoln("Intermediate file " + fileName + " is saved.")
 }
 
 func printSqueezedOut(str string) {
@@ -564,11 +572,10 @@ func squeezeString(inString string) string {
 func returnAppInfo(verbLevel int) string {
 	var header = "Gerber to EM-7052 translation tool. "
 	var version = "Version 0.2.0. "
-	var progDate = "30-Sep-2018"
 	var retVal = "\n"
 	switch verbLevel {
 	case 3:
-		retVal = header + version + progDate
+		retVal = header + version + versiongenerator.BuildDateTime
 	case 2:
 		retVal = header + version
 	case 1:
@@ -588,7 +595,7 @@ func printMemUsage(header string) {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	glog.Infof(header + " Alloc = %v KB\tTotalAlloc = %v KB\tSys = %v KB\tNumGC = %v\n",
+	glog.Infof(header+" Alloc = %v KB\tTotalAlloc = %v KB\tSys = %v KB\tNumGC = %v\n",
 		bToKb(memStats.Alloc),
 		bToKb(memStats.TotalAlloc),
 		bToKb(memStats.Sys),
@@ -600,7 +607,7 @@ func bToKb(b uint64) uint64 {
 }
 
 func timeInfo(prev time.Time) string {
-//	now := time.Now()
+	//	now := time.Now()
 	elapsed := time.Since(prev)
 	/*
 		"[23:59:04 +2.00001] "
@@ -673,15 +680,15 @@ func ProcessStep(stepData *render.State) {
 				// linear interpolation
 				if renderContext.DrawOnlyRegionsMode != true {
 					if stepData.CurrentAp.Type == AptypeCircle {
-//						apertureSize = transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
-						apertureSize = transformCoord(stepData.CurrentAp.Diameter * stepData.ApTransParams.Scale,
+						//						apertureSize = transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
+						apertureSize = transformCoord(stepData.CurrentAp.Diameter*stepData.ApTransParams.Scale,
 							renderContext.XRes)
 						renderContext.DrawByCircleAperture(Xp, Yp, Xc, Yc, apertureSize, stepColor)
 					} else if stepData.CurrentAp.Type == AptypeRectangle {
 						// draw with rectangle aperture
-						w := transformCoord(stepData.CurrentAp.XSize * stepData.ApTransParams.Scale,
+						w := transformCoord(stepData.CurrentAp.XSize*stepData.ApTransParams.Scale,
 							renderContext.XRes)
-						h := transformCoord(stepData.CurrentAp.YSize * stepData.ApTransParams.Scale,
+						h := transformCoord(stepData.CurrentAp.YSize*stepData.ApTransParams.Scale,
 							renderContext.YRes)
 						renderContext.DrawByRectangleAperture(Xp, Yp, Xc, Yc, w, h, stepColor)
 					} else {
@@ -693,8 +700,8 @@ func ProcessStep(stepData *render.State) {
 				// non-linear interpolation
 				if renderContext.DrawOnlyRegionsMode != true {
 					if stepData.CurrentAp.Type == AptypeCircle {
-						apertureSize = transformCoord(stepData.CurrentAp.Diameter * stepData.ApTransParams.Scale,
-						renderContext.XRes)
+						apertureSize = transformCoord(stepData.CurrentAp.Diameter*stepData.ApTransParams.Scale,
+							renderContext.XRes)
 						var (
 							fXp, fYp float64
 						)
@@ -775,7 +782,7 @@ func abs(x int) int {
 	case x >= MinInt:
 		return -x
 	}
-//	panic("math/int.Abs: invalid argument")
+	//	panic("math/int.Abs: invalid argument")
 	glog.Fatalln("math/int.Abs: invalid argument")
 	return 0
 }
@@ -826,8 +833,15 @@ func TokenizeGerber(buf *[]byte) *[]string {
 			a++
 			continue
 		}
+
+		// fix strange files with \0 \0 \0...
+		if (*buf)[a] == 0x00 {
+			a++
+			continue
+		}
+
 		if (*buf)[a] != '*' {
-				trailerFound := false
+			trailerFound := false
 			// scan for trailing '*'
 			start := a
 			a++
@@ -848,11 +862,11 @@ func TokenizeGerber(buf *[]byte) *[]string {
 			if strings.HasPrefix(filtered, "G04") == false &&
 				strings.HasPrefix(filtered, "G4") == false {
 				for {
-					if len(filtered) > 4 &&	filtered[0] == 'G' && filtered[3] != '*' {
-							retVal = append(retVal, filtered[:3]+"*")
-							filtered = filtered[3:]
-							continue
-						}
+					if len(filtered) > 4 && filtered[0] == 'G' && filtered[3] != '*' {
+						retVal = append(retVal, filtered[:3]+"*")
+						filtered = filtered[3:]
+						continue
+					}
 					//if len(filtered) > 3 && filtered[0] == 'G' && filtered[2] != '*' {
 					//		retVal = append(retVal, filtered[:2]+"*")
 					//		filtered = filtered[2:]
@@ -873,9 +887,8 @@ func TokenizeGerber(buf *[]byte) *[]string {
 	return &retVal
 }
 
-
 //filters \n \r symbols from the string
-func FilterNewLines(inString string) string  {
+func FilterNewLines(inString string) string {
 	retVal := strings.Replace(inString, "\n", "", -1)
 	return strings.Replace(retVal, "\r", "", -1)
 }

@@ -1,0 +1,50 @@
+# test configuration file
+[folders]
+PlotterFilesFolder = "G:\\go_prj\\gerber2em7\\plt"
+IntermediateFilesFolder = "G:\\go_prj\\gerber2em7\\tmp"
+PNGFilesFolder = "G:\\go_prj\\gerber2em7\\png"
+
+[common]
+#PrintMemoryInfo = true
+PrintMemoryInfo = false
+#PrintAperturesInfo = true
+PrintAperturesInfo = false
+#PrintRegionsInfo = true
+PrintRegionsInfo = false
+#PrintStatistic = false
+PrintStatistic = true
+#PrintGerberComments = true
+PrintGerberComments = false
+
+[parser]
+SaveIntermediate = true
+#SaveIntermediate = false
+
+[pcb]
+xOrigin = 0
+yOrigin = 0
+
+[renderer]
+# all values are in mm
+GeneratePNG = true
+OutFile = "outfile.png"
+CanvasWidth = 297
+CanvasHeight = 210
+DrawContours = false
+#DrawContours = true
+DrawMoves = false
+#DrawMoves = true
+DrawOnlyRegions = false
+PrintRegionInfo = false
+
+#RGBA
+apertureColor = [255, 0, 0, 255 ]
+lineColor = [0, 0, 255, 255 ]
+regionColor = [255, 0, 255, 255 ]
+
+[plotter]
+# all values are in mm
+PenSizes = [0.075, 0.07, 0.07, 0.00]
+OutFile = "plotter.out"
+xRes = 0.025
+yRes = 0.025
