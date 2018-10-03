@@ -1,7 +1,7 @@
 # test configuration file
 [folders]
-PlotterFilesFolder = "G:\\go_prj\\gerber2em7\\plt"
-IntermediateFilesFolder = "G:\\go_prj\\gerber2em7\\tmp"
+PlotterFilesFolder = "G:\\go_prj/gerber2em7\\plt"
+IntermediateFilesFolder = "G:/go_prj\\gerber2em7\\tmp"
 PNGFilesFolder = "G:\\go_prj\\gerber2em7\\png"
 
 [common]
@@ -17,8 +17,8 @@ PrintStatistic = true
 PrintGerberComments = false
 
 [parser]
-SaveIntermediate = true
-#SaveIntermediate = false
+#SaveIntermediate = true
+SaveIntermediate = false
 
 [pcb]
 xOrigin = 0
@@ -27,7 +27,7 @@ yOrigin = 0
 [renderer]
 # all values are in mm
 GeneratePNG = true
-OutFile = "outfile.png"
+OutFile = ""
 CanvasWidth = 297
 CanvasHeight = 210
 DrawContours = false
@@ -45,6 +45,6 @@ regionColor = [255, 0, 255, 255 ]
 [plotter]
 # all values are in mm
 PenSizes = [0.075, 0.07, 0.07, 0.00]
-OutFile = "plotter.out"
+OutFile = ""
 xRes = 0.025
 yRes = 0.025

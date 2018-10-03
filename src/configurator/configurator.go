@@ -50,7 +50,7 @@ func SetDefaults(v *viper.Viper) {
 	//
 	v.SetDefault(CfgParserSaveIntermediate, true)
 	v.SetDefault(CfgRendererGeneratePNG, true)
-	v.SetDefault(CfgRendererOutFile, "out.png")
+	v.SetDefault(CfgRendererOutFile, "")
 
 	//
 	v.SetDefault("pcb.xOrigin", 0)
@@ -69,7 +69,7 @@ func SetDefaults(v *viper.Viper) {
 	v.SetDefault(CfgPlotterPenSizes, []float64{0.07, 0.07, 0.07, 0.00})
 	v.SetDefault(CfgPlotterXRes, 0.025)
 	v.SetDefault(CfgPlotterYRes, 0.025)
-	v.SetDefault(CfgPlotterOutFile, "plotter.out")
+	v.SetDefault(CfgPlotterOutFile, "")
 
 /*
 [folders]

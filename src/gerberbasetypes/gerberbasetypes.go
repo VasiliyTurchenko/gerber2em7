@@ -1,4 +1,5 @@
 // Base types for Gerber parsing and processing
+//  go:generate stringer -type=GerberApType
 package gerberbasetypes
 
 const (
@@ -84,7 +85,7 @@ func (act ActType) String() string {
 	default:
 
 	}
-	return "Unknown OpCode"
+	return "Unknown Opcode"
 }
 
 type QuadMode int

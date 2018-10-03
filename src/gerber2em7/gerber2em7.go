@@ -10,10 +10,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/spf13/viper"
-	"image/color"
 	"image/png"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -60,7 +60,6 @@ var (
 
 	//render context
 	renderContext *render.Render
-
 )
 
 func init() {
@@ -75,10 +74,15 @@ func usage() {
 
 func Main() {
 
+	var (
+		PlotterFilesFolder      = ""
+//		IntermediateFilesFolder = ""
+		PNGFilesFolder          = ""
+		inFileName              = ""
+	)
+
 	var sourceFileName string
 	flag.StringVar(&sourceFileName, "i", "", "input file")
-
-
 
 	flag.Set("stderrthreshold", "ERROR")
 	flag.Set("alsologtostderr", "true")
@@ -97,7 +101,7 @@ func Main() {
 	if cfgFileError != nil {
 		fmt.Print("An error has occured: ")
 		fmt.Println(cfgFileError)
-		fmt.Println("Using built-in defaults.\n")
+		fmt.Println("Using built-in defaults.")
 		configurator.SetDefaults(viperConfig)
 	}
 
@@ -108,13 +112,20 @@ func Main() {
 		flag.PrintDefaults()
 		os.Exit(-1)
 	}
+
+	_, inFileName = filepath.Split(sourceFileName)
+
 	timeStamp := time.Now()
 
 	glog.Infoln(timeInfo(timeStamp)+"input file:", sourceFileName)
 
-	glog.Infoln("folders.PlotterFilesFolder = " + viperConfig.Get(configurator.CfgFoldersPlotterFilesFolder).(string))
-	glog.Infoln("folders.IntermediateFilesFolder = " + viperConfig.Get(configurator.CfgFoldersIntermediateFilesFolder).(string))
-	glog.Infoln("folders.IntermediateFilesFolder = "+ viperConfig.Get(configurator.CfgFoldersPNGFilesFolder).(string))
+	PlotterFilesFolder = filepath.FromSlash(viperConfig.Get(configurator.CfgFoldersPlotterFilesFolder).(string))
+//	IntermediateFilesFolder = filepath.FromSlash(viperConfig.Get(configurator.CfgFoldersIntermediateFilesFolder).(string))
+	PNGFilesFolder = filepath.FromSlash(viperConfig.Get(configurator.CfgFoldersPNGFilesFolder).(string))
+
+	//glog.Infoln("folders.PlotterFilesFolder = " + PlotterFilesFolder)
+	//glog.Infoln("folders.IntermediateFilesFolder = " + IntermediateFilesFolder)
+	//glog.Infoln("folders.PNGFilesFolder = " + PNGFilesFolder)
 
 	/*
 	   Process input string
@@ -135,7 +146,7 @@ func Main() {
 		gerberStrings.Accept(squeezeString(strings.ToUpper(str)))
 	}
 	// save splitted strings to a file
-	saveIntermediate(gerberStrings, "pure_gerber.txt")
+	saveIntermediate(gerberStrings, inFileName + "_pure_gerber.txt")
 
 	// search for format definition strings
 	mo, err := searchMO(gerberStrings)
@@ -222,7 +233,7 @@ func Main() {
 	// Global array of commands
 	gerberStrings, gerberStrings2 = gerberStrings2, nil
 
-	saveIntermediate(gerberStrings, "before_steps.txt")
+	saveIntermediate(gerberStrings, inFileName + "_before_steps.txt")
 
 	// Main sequence of steps
 	arrayOfSteps = make([]*render.State, gerberStrings.Len()+1)
@@ -361,7 +372,14 @@ func Main() {
 	*/
 	plotterInstance = plotter.NewPlotter()
 	plotterInstance.TakePen(1)
-	plotterInstance.SetOutFileName(viperConfig.GetString(configurator.CfgFoldersPlotterFilesFolder) + "\\" + viperConfig.GetString(configurator.CfgPlotterOutFile))
+
+	ofNameFromCfg := viperConfig.GetString(configurator.CfgPlotterOutFile)
+	if len(ofNameFromCfg) == 0 {
+		ofNameFromCfg = inFileName + ".plt"
+	}
+
+	outfname := filepath.Join(filepath.ToSlash(PlotterFilesFolder), ofNameFromCfg)
+	plotterInstance.SetOutFileName(outfname)
 	renderContext = render.NewRender(plotterInstance, viperConfig, minX, minY, maxX, maxY)
 	glog.Infof("Min. X, Y found: (%f,%f)\n", minX, minY)
 	glog.Infof("Max. X, Y found: (%f,%f)\n", maxX, maxY)
@@ -413,8 +431,18 @@ func Main() {
 		printMemUsage("Memory usage before png encoding:")
 
 		glog.Infoln(timeInfo(timeStamp)+"Generating png image ", renderContext.Img.Bounds().String())
-//viperConfig.Get(configurator.CfgFoldersPNGFilesFolder).(string)
-		ofname := viperConfig.Get(configurator.CfgFoldersPNGFilesFolder).(string) + "\\" + viperConfig.GetString(configurator.CfgRendererOutFile)
+		/*
+			ofNameFromCfg := viperConfig.GetString(configurator.CfgPlotterOutFile)
+			if len(ofNameFromCfg) == 0 {
+				ofNameFromCfg = inFileName + ".plt"
+			}
+
+		*/
+		pngNameFromCfg := viperConfig.GetString(configurator.CfgRendererOutFile)
+		if len(pngNameFromCfg) == 0 {
+			pngNameFromCfg = inFileName + ".png"
+		}
+		ofname := filepath.Join(filepath.ToSlash(PNGFilesFolder), pngNameFromCfg)
 		f, _ := os.OpenFile(ofname, os.O_WRONLY|os.O_CREATE, 0600)
 		defer f.Close()
 		png.Encode(f, renderContext.Img)
@@ -425,8 +453,7 @@ func Main() {
 
 	glog.Infoln(timeInfo(timeStamp) + "Saving plotter commands stream to file")
 	plotterInstance.Stop()
-	glog.Infoln(timeInfo(timeStamp)+"Plotter commands are saved to the file",
-		viperConfig.GetString(configurator.CfgFoldersPlotterFilesFolder) + "\\" + viperConfig.GetString(configurator.CfgPlotterOutFile))
+	glog.Infoln(timeInfo(timeStamp)+"Plotter commands are saved to the file", outfname)
 	glog.Exitln(timeInfo(timeStamp) + "Exiting")
 }
 
@@ -485,7 +512,7 @@ func saveIntermediate(storage *stor.Storage, fileName string) {
 		return
 	}
 
-	fileName = viperConfig.Get(configurator.CfgFoldersIntermediateFilesFolder).(string) + "\\"+ fileName
+	fileName = filepath.Join(viperConfig.Get(configurator.CfgFoldersIntermediateFilesFolder).(string), fileName)
 
 	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
@@ -631,138 +658,6 @@ func timeInfo(prev time.Time) string {
 	//out = out + strconv.FormatFloat(elapsedSec, 'f', 3, 64) + "] "
 	return out + strconv.FormatFloat(elapsedSec, 'f', 3, 64) + "] "
 	//fmt.Print(out)
-}
-
-/*
-**************************** step processor *******************************
- */
-func ProcessStep(stepData *render.State) {
-
-	//	stepData.Print()
-
-	var Xp int
-	var Yp int
-	Xc := transformCoord(stepData.Coord.GetX()-renderContext.MinX, renderContext.XRes)
-	Yc := transformCoord(stepData.Coord.GetY()-renderContext.MinY, renderContext.YRes)
-	if stepData.PrevCoord == nil {
-		Xp = transformCoord(0-renderContext.MinX, renderContext.XRes)
-		Yp = transformCoord(0-renderContext.MinY, renderContext.YRes)
-	} else {
-		Xp = transformCoord(stepData.PrevCoord.GetX()-renderContext.MinX, renderContext.XRes)
-		Yp = transformCoord(stepData.PrevCoord.GetY()-renderContext.MinY, renderContext.YRes)
-	}
-
-	if stepData.Region != nil {
-		// process region
-		if renderContext.PolygonPtr == nil {
-			renderContext.PolygonPtr = render.NewPolygon(stepData.Region.G36StringNumber)
-		}
-		if renderContext.AddStepToPolygon(stepData) == stepData.Region.GetNumXY() {
-			// we can process region
-			renderContext.RenderPolygon()
-			renderContext.PolygonPtr = nil
-		}
-	} else {
-		var stepColor color.RGBA
-		switch stepData.Action {
-		case OpcodeD01_DRAW: // draw
-			if stepData.ApTransParams.Polarity == PolTypeDark {
-				stepColor = renderContext.LineColor
-			} else {
-				stepColor = renderContext.ClearColor
-			}
-
-			var apertureSize int
-			//if abs(Xc-Xp) < (4*renderContext.PointSizeI) && abs(Yc-Yp) < (4*renderContext.PointSizeI) {
-			//	stepData.IpMode = IPModeLinear
-			//}
-			if stepData.IpMode == IPModeLinear {
-				// linear interpolation
-				if renderContext.DrawOnlyRegionsMode != true {
-					if stepData.CurrentAp.Type == AptypeCircle {
-						//						apertureSize = transformCoord(stepData.CurrentAp.Diameter, renderContext.XRes)
-						apertureSize = transformCoord(stepData.CurrentAp.Diameter*stepData.ApTransParams.Scale,
-							renderContext.XRes)
-						renderContext.DrawByCircleAperture(Xp, Yp, Xc, Yc, apertureSize, stepColor)
-					} else if stepData.CurrentAp.Type == AptypeRectangle {
-						// draw with rectangle aperture
-						w := transformCoord(stepData.CurrentAp.XSize*stepData.ApTransParams.Scale,
-							renderContext.XRes)
-						h := transformCoord(stepData.CurrentAp.YSize*stepData.ApTransParams.Scale,
-							renderContext.YRes)
-						renderContext.DrawByRectangleAperture(Xp, Yp, Xc, Yc, w, h, stepColor)
-					} else {
-						glog.Fatalln("Error. Only solid drawCircle and solid rectangle may be used to draw.")
-						break
-					}
-				}
-			} else {
-				// non-linear interpolation
-				if renderContext.DrawOnlyRegionsMode != true {
-					if stepData.CurrentAp.Type == AptypeCircle {
-						apertureSize = transformCoord(stepData.CurrentAp.Diameter*stepData.ApTransParams.Scale,
-							renderContext.XRes)
-						var (
-							fXp, fYp float64
-						)
-						if stepData.PrevCoord == nil {
-							fXp = transformFloatCoord(0-renderContext.MinX, renderContext.XRes)
-							fYp = transformFloatCoord(0-renderContext.MinY, renderContext.YRes)
-						} else {
-							fXp = transformFloatCoord(stepData.PrevCoord.GetX()-renderContext.MinX, renderContext.XRes)
-							fYp = transformFloatCoord(stepData.PrevCoord.GetY()-renderContext.MinY, renderContext.YRes)
-						}
-
-						fXc := transformFloatCoord(stepData.Coord.GetX()-renderContext.MinX, renderContext.XRes)
-						fYc := transformFloatCoord(stepData.Coord.GetY()-renderContext.MinY, renderContext.YRes)
-						fI := transformFloatCoord(stepData.Coord.GetI(), renderContext.XRes)
-						fJ := transformFloatCoord(stepData.Coord.GetJ(), renderContext.YRes)
-
-						// Arcs require floats!
-						err := renderContext.DrawArc(fXp,
-							fYp,
-							fXc,
-							fYc,
-							fI,
-							fJ,
-							apertureSize,
-							stepData.IpMode,
-							stepData.QMode,
-							// TODO
-							renderContext.RegionColor)
-						if err != nil {
-							stepData.Print()
-							checkError(err)
-						}
-						renderContext.DrawDonut(Xp, Yp, apertureSize, 0, stepColor)
-						renderContext.DrawDonut(Xc, Yc, apertureSize, 0, stepColor)
-					} else if stepData.CurrentAp.Type == AptypeRectangle {
-						glog.Fatalln("Arc drawing by rectangle aperture is not supported now.")
-					} else {
-						glog.Fatalln("Only solid drawCircle and solid rectangle may be used to draw.")
-						break
-					}
-				}
-			}
-			//
-		case OpcodeD02_MOVE: // move
-			renderContext.MovePen(Xp, Yp, Xc, Yc, renderContext.MovePenColor)
-			//
-		case OpcodeD03_FLASH: // flash
-			if renderContext.DrawOnlyRegionsMode != true {
-				renderContext.MovePen(Xp, Yp, Xc, Yc, renderContext.MovePenColor)
-				if stepData.ApTransParams.Polarity == PolTypeDark {
-					stepData.CurrentAp.Render(Xc, Yc, renderContext)
-				} else {
-					glog.Errorln("Flash by clear polarity is not supported yet.")
-				}
-
-			}
-		default:
-			checkError(errors.New("(renderContext *Render) ProcessStep(stepData *gerbparser.State) internal error. Bad opcode"))
-			break
-		}
-	}
 }
 
 /* some draw helpers */
