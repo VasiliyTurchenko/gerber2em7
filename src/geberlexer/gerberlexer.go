@@ -1,7 +1,11 @@
 package geberlexer
 
 import (
+	"glog_t"
+	"strconv"
 	"strings"
+	"unicode"
+	"xy"
 )
 
 /*
@@ -108,6 +112,9 @@ Sometimes used.
 
 //go:generate stringer -type=GerberCommandId
 
+const MaxUint = ^uint(0)
+const MaxInt = int(MaxUint >> 1)
+
 type GCommander interface {
 	String() string
 }
@@ -152,6 +159,7 @@ const (
 	MI
 	MO
 	OF
+	RO
 	SF
 	SR
 	TA
@@ -162,69 +170,107 @@ const (
 	NOP
 )
 
-var GCmdBaseArray = []GerberCommand{
-	{D, ""},
-	{D01, ""},
-	{D02, ""},
-	{D03, ""},
-	{G01, ""},
-	{G02, ""},
-	{G03, ""},
-	{G04, ""},
-	{G36, ""},
-	{G37, ""},
-	{G54, ""},
-	{G55, ""},
-	{G70, ""},
-	{G71, ""},
-	{G74, ""},
-	{G75, ""},
-	{G90, ""},
-	{G91, ""},
-	{M00, ""},
-	{M01, ""},
-	{M02, ""},
+var GCmdBaseArray = []GerberCommandId{
+	D,
+	D01,
+	D02,
+	D03,
+	G01,
+	G02,
+	G03,
+	G04,
+	G36,
+	G37,
+	G54,
+	G55,
+	G70,
+	G71,
+	G74,
+	G75,
+	G90,
+	G91,
+	M00,
+	M01,
+	M02,
 }
-var GCmdExtArray = []GerberCommand{
-	{AB, ""},
-	{AD, ""},
-	{AM, ""},
-	{AS, ""},
-	{FS, ""},
-	{IN, ""},
-	{IP, ""},
-	{IR, ""},
-	{LM, ""},
-	{LN, ""},
-	{LP, ""},
-	{LR, ""},
-	{LS, ""},
-	{MI, ""},
-	{MO, ""},
-	{OF, ""},
-	{SF, ""},
-	{SR, ""},
-	{TA, ""},
-	{TD, ""},
-	{TF, ""},
-	{TO, ""},
+var GCmdExtArray = []GerberCommandId{
+	AB,
+	AD,
+	AM,
+	AS,
+	FS,
+	IN,
+	IP,
+	IR,
+	LM,
+	LN,
+	LP,
+	LR,
+	LS,
+	MI,
+	MO,
+	OF,
+	RO,
+	SF,
+	SR,
+	TA,
+	TD,
+	TF,
+	TO,
 }
 
-var BadGerberCommand = GerberCommand{NOP, ""}
+// first initialization
+func (gc *GerberCommand) Init() {
+	switch gc.cmd {
+	case FS:
+		lexFS.Init( "%FS" + gc.cmdString + "%" , "%MOMM*%")
+	case MO:
+		if gc.cmdString == "IN" {
+			lexFS.MUString = "%MOIN*%"
+			lexFS.MU = xy.InchesToMM
+		}
+	case D01, D02, D03:
+		gc.xy = xy.NewXY()
+		gc.xy.Init(gc.cmdString + "D", &lexFS, nil )
+	case G04, TF, TA:
+
+	default:
+		glog_t.Error("Init() is not implemented: " + gc.String())
+	}
+}
+
+
+var GerberCommandNr int = 0
 
 type GerberCommand struct {
 	cmd       GerberCommandId
 	cmdString string
+	cmdNumber int
+	xy *xy.XY
+
 }
 
 func (gc *GerberCommand) String() string {
-	return "{command:\"" + gc.cmd.String() + "\",val:\"" + gc.cmdString + "\"}"
+	xyStr := ""
+	if gc.xy != nil {
+		xyStr = `,xy:"` + gc.xy.String()
+	}
+	return "{cmd#:" + strconv.Itoa(gc.cmdNumber) + ",cmd:\"" + gc.cmd.String() + "\",val:\"" + gc.cmdString + xyStr +"\"}"
 }
 
-func (gc *GerberCommand) Clone() GerberCommand {
+//func (gc *GerberCommand) Clone() GerberCommand {
+//	retVal := new(GerberCommand)
+//	retVal.cmd = gc.cmd
+//	retVal.cmdString = copys2(gc.cmdString)
+//	return *retVal
+//}
+
+func NewGerberCommand(cmd GerberCommandId) GerberCommand {
 	retVal := new(GerberCommand)
-	retVal.cmd = gc.cmd
-	retVal.cmdString = copys2(gc.cmdString)
+	retVal.cmd = cmd
+	retVal.cmdString = "<empty>"
+	retVal.cmdNumber = GerberCommandNr
+	GerberCommandNr++
 	return *retVal
 }
 
@@ -244,94 +290,6 @@ func (d Delim) String() string {
 	default:
 		return string(d)
 	}
-}
-
-func SplitByGCommands(buf *[]byte) *[]GerberCommand {
-	retVal := make([]GerberCommand, 0)
-	ExtBegin := false
-	cmdDetected := false
-	cc := ""
-	cbody := ""
-	baseNum := ""
-	var AddCmd = GerberCommand{NOP, ""}
-	for i := range *buf {
-		// purge CR LF
-		if (*buf)[i] == 0x0A || (*buf)[i] == 0x0D {
-			continue
-		}
-		if ExtBegin == false && (*buf)[i] == byte(ExtCmdDelimiter) {
-			ExtBegin = true
-			continue
-		}
-		if ExtBegin == true && cmdDetected == false {
-			cc = cc + string((*buf)[i])
-			if len(cc) == 2 {
-				// look foe the command
-				cmdDetected = true
-				for j := range GCmdExtArray {
-					if cc == GCmdExtArray[j].cmd.String() {
-						AddCmd = GCmdExtArray[j].Clone()
-						break
-					}
-					AddCmd = BadGerberCommand.Clone()
-				}
-			}
-			continue
-		}
-		if ExtBegin == true && cmdDetected == true {
-			if (*buf)[i] == byte(ExtCmdDelimiter) {
-				retVal = append(retVal, AddCmd)
-				ExtBegin = false
-				cmdDetected = false
-				AddCmd.cmdString = ""
-				AddCmd.cmd = NOP
-				cc = ""
-			} else {
-				AddCmd.cmdString += string((*buf)[i])
-			}
-			continue
-		}
-		// base commands
-		if cmdDetected == false {
-			c := (*buf)[i]
-			if c == 'M' || c == 'G' || 	c == 'D' {
-				cc = string(c)
-				cmdDetected = true
-			} else {
-				cbody = cbody + string(c)
-			}
-			continue
-		}
-		if cmdDetected == true {
-			c := (*buf)[i]
-			if c == ' ' || c == byte(DataBlockTrailer) {
-				cc = FormatGCode(cc, baseNum)
-				if cc[0] == 'D' && cc != "D01" && cc != "D02" && cc != "D03" {
-					cbody = cc[1:]
-					cc = "D"
-				}
-				for j := range GCmdBaseArray {
-					if cc == GCmdBaseArray[j].cmd.String() {
-						AddCmd = GCmdBaseArray[j].Clone()
-						AddCmd.cmdString = cbody
-						break
-					}
-					AddCmd = BadGerberCommand.Clone()
-					AddCmd.cmdString = cc
-				}
-				retVal = append(retVal, AddCmd)
-				cmdDetected = false
-				baseNum = ""
-				cbody = ""
-				cc = ""
-			} else {
-				baseNum = baseNum + string(c)
-			}
-			continue
-		}
-		panic("Dead end reached!")
-	}
-	return &retVal
 }
 
 func copys2(a string) string {
@@ -359,3 +317,186 @@ func FormatGCode(sym string, num string) string {
 
 	return sym + num
 }
+
+func SplitByGCommands2(buf *[]byte) *[]GerberCommand {
+	retVal := make([]GerberCommand, 0)
+	extCmdStartPos := -1
+	extCmdEndPos := -1
+	baseCmdStartPos := -1
+	baseCmdEndPos := -1
+	for i := range *buf {
+		// purge CR LF
+		if (*buf)[i] == 0x0A || (*buf)[i] == 0x0D {
+			continue
+		}
+
+		if extCmdStartPos == -1 {
+			if unicode.IsSpace(rune((*buf)[i])) == true {
+				continue
+			}
+		}
+
+		if (*buf)[i] == byte(ExtCmdDelimiter) {
+			if extCmdStartPos == -1 && extCmdEndPos == -1 {
+				extCmdStartPos = i
+				continue
+			}
+			if extCmdStartPos != -1 && extCmdEndPos == -1 {
+				extCmdEndPos = i
+			}
+			extCmdString := string((*buf)[extCmdStartPos+1 : extCmdEndPos])
+			extCmd := parseExtCmd(extCmdString)
+			if extCmd != nil {
+				retVal = append(retVal, *extCmd)
+			}
+			extCmdStartPos = -1
+			extCmdEndPos = -1
+			continue
+		}
+		if extCmdStartPos == -1 {
+			if baseCmdStartPos == -1 && baseCmdEndPos == -1 {
+				if (*buf)[i] != byte(DataBlockTrailer) {
+					baseCmdStartPos = i
+				}
+				continue
+			}
+			if (*buf)[i] == byte(DataBlockTrailer) && baseCmdStartPos != -1 {
+				baseCmdEndPos = i
+
+				baseCmdString := string((*buf)[baseCmdStartPos:baseCmdEndPos])
+
+				for {
+					// check for concatenated commands like G01D45XnnnYnnnD01
+					if len(baseCmdString) > 3 &&
+						(baseCmdString[0] == 'G' || baseCmdString[0] == 'D') &&
+						baseCmdString[0:3] != "G04" &&
+						baseCmdString[0:2] != "G4" {
+						notNumPos := MaxInt
+						for k := 1; k < len(baseCmdString); k++ {
+							if strings.IndexAny(baseCmdString[k:k+1], "01234567890") == -1 {
+								notNumPos = k
+								break
+							}
+						}
+						if notNumPos < len(baseCmdString) {
+							baseCmd := parseBaseCmd(baseCmdString[:notNumPos])
+							baseCmdString = baseCmdString[notNumPos:]
+							if baseCmd != nil {
+								retVal = append(retVal, *baseCmd)
+							} else {
+								baseCmdStartPos = -1
+								baseCmdEndPos = -1
+								continue
+							}
+
+						} else {
+							break
+						}
+					} else {
+						break
+					}
+				}
+				baseCmd := parseBaseCmd(baseCmdString)
+				if baseCmd != nil {
+					retVal = append(retVal, *baseCmd)
+				}
+				baseCmdStartPos = -1
+				baseCmdEndPos = -1
+				continue
+			}
+		}
+	}
+	for gc := range retVal {
+		retVal[gc].Init()
+	}
+	return &retVal
+}
+
+func parseExtCmd(in string) *GerberCommand {
+	if len(in) < 3 {
+		return nil
+	}
+	retVal := new(GerberCommand)
+	for j := range GCmdExtArray {
+		if in[:2] == GCmdExtArray[j].String() {
+			*retVal = NewGerberCommand(GCmdExtArray[j])
+			(*retVal).cmdString = in[2:]
+			return retVal
+		}
+	}
+	glog_t.Error("The string isn't parsed: ", in)
+	return nil
+}
+
+func parseBaseCmd(in string) *GerberCommand {
+	in = strings.TrimSpace(in)
+	if len(in) < 2 {
+		return nil
+	}
+	retVal := new(GerberCommand)
+	cmdString := ""
+	// filter comments
+	if strings.HasPrefix(in, "G04") || strings.HasPrefix(in, "G4") {
+		cmd := "G04"
+		var cmdString string = ""
+		if len(in) > 3 && strings.HasPrefix(in, "G04") {
+			cmdString = in[3:]
+		} else if len(in) > 2 && strings.HasPrefix(in, "G4") {
+			cmdString = in[2:]
+		}
+		for j := range GCmdBaseArray {
+			if cmd == GCmdBaseArray[j].String() {
+				*retVal = NewGerberCommand(GCmdBaseArray[j])
+				(*retVal).cmdString = cmdString
+				return retVal
+			}
+		}
+	}
+
+	// fix implicit D01*
+	impl := true
+	for m := range in {
+		if strings.IndexAny(in[m:m+1], "+-XYIJ0123456789") == -1 {
+			impl = false
+			break
+		}
+	}
+	if impl == true {
+		in = in + "D01"
+	}
+
+	// find rightmost byte of D|G|M
+	for i := len(in); i > 0; i-- {
+		if in[i-1] == 'D' || in[i-1] == 'G' || in[i-1] == 'M' {
+			cmd := FormatGCode(in[i-1:i], in[i:])
+			if cmd[0] == 'D' && cmd != "D01" && cmd != "D02" && cmd != "D03" {
+				cmdString = cmd[1:]
+				if _, err := strconv.Atoi(cmdString); err != nil {
+					break
+				}
+				cmd = "D"
+			} else {
+				cmdString = in[:i-1]
+			}
+			for k := range cmdString {
+				if strings.IndexAny(cmdString[k:k+1], "+-XYIJ0123456789") == -1 {
+					cmd = ""
+					break
+				}
+			}
+			for j := range GCmdBaseArray {
+				if cmd == GCmdBaseArray[j].String() {
+					*retVal = NewGerberCommand(GCmdBaseArray[j])
+					(*retVal).cmdString = cmdString
+					return retVal
+				}
+			}
+		}
+	}
+	glog_t.Error("The string isn't parsed: ", in)
+	return nil
+}
+
+/* XY initializer */
+
+var lexFS = xy.FormatSpec{"", "",0,0,0,0, 1.0}
