@@ -24,5 +24,4 @@ func TestRegion_IsRegionOpened(t *testing.T) {
 	}
 	t.Log("all OK")
 
-
 }

@@ -58,8 +58,6 @@ type Plotter interface {
 
 	// takes a pen
 	TakePen(penNumber int) string
-
-
 }
 
 /*

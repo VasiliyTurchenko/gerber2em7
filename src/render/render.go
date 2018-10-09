@@ -740,13 +740,13 @@ func (rc *Render) DrawArc(x1, y1, x2, y2, i, j float64, apertureSize int, ipm IP
 
 	r = (r + rt) / 2
 
-	cosPhi1 := band((x1 - xC) / r, 1.0)
+	cosPhi1 := band((x1-xC)/r, 1.0)
 	Phi1 := rad2Deg(math.Acos(cosPhi1))
 	if float64(y1)-yC < 0 {
 		Phi1 = 360.0 - Phi1
 	}
 
-	cosPhi2 := band((x2 - xC) / r, 1.0)
+	cosPhi2 := band((x2-xC)/r, 1.0)
 	Phi2 := rad2Deg(math.Acos(cosPhi2))
 	if float64(y2)-yC < 0 {
 		Phi2 = 360.0 - Phi2
@@ -861,11 +861,11 @@ func deg2Rad(a float64) float64 {
  */
 
 type Polygon struct {
-	steps       *[]*State
-	polX        *[]float64
-	polY        *[]float64
-//	numVertices int
-	id          int
+	steps *[]*State
+	polX  *[]float64
+	polY  *[]float64
+	//	numVertices int
+	id int
 }
 
 func NewPolygon(id int) *Polygon {
@@ -893,7 +893,7 @@ func (rc *Render) RenderPolygon() {
 		if (*rc.PolygonPtr.steps)[0].Action == OpcodeD02_MOVE {
 			j++
 		}
-		for j < len(*rc.PolygonPtr.steps) && (*rc.PolygonPtr.steps)[j].Action != OpcodeD02_MOVE  {
+		for j < len(*rc.PolygonPtr.steps) && (*rc.PolygonPtr.steps)[j].Action != OpcodeD02_MOVE {
 			if (*rc.PolygonPtr.steps)[j].IpMode != IPModeLinear {
 				rc.interpolate((*rc.PolygonPtr.steps)[j])
 			} else {
@@ -934,14 +934,14 @@ func (rc *Render) interpolate(st *State) {
 	}
 	r = (r + rt) / 2
 
-	cosFi1 := band((st.PrevCoord.GetX() - xc) / r, 1.0)
+	cosFi1 := band((st.PrevCoord.GetX()-xc)/r, 1.0)
 
 	fi1 := rad2Deg(math.Acos(cosFi1))
 	if st.PrevCoord.GetY()-yc < 0 {
 		fi1 = 360.0 - fi1
 	}
 
-	cosFi2 := band((st.Coord.GetX() - xc) / r, 1.0)
+	cosFi2 := band((st.Coord.GetX()-xc)/r, 1.0)
 	fi2 := rad2Deg(math.Acos(cosFi2))
 	if st.Coord.GetY()-yc < 0 {
 		fi2 = 360.0 - fi2

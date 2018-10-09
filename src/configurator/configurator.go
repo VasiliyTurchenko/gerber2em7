@@ -30,9 +30,9 @@ const (
 )
 
 const (
-	CfgFoldersPlotterFilesFolder string = "folders.PlotterFilesFolder"
+	CfgFoldersPlotterFilesFolder      string = "folders.PlotterFilesFolder"
 	CfgFoldersIntermediateFilesFolder string = "folders.IntermediateFilesFolder"
-	CfgFoldersPNGFilesFolder string  ="folders.PNGFilesFolder"
+	CfgFoldersPNGFilesFolder          string = "folders.PNGFilesFolder"
 )
 
 func SetDefaults(v *viper.Viper) {
@@ -71,12 +71,12 @@ func SetDefaults(v *viper.Viper) {
 	v.SetDefault(CfgPlotterYRes, 0.025)
 	v.SetDefault(CfgPlotterOutFile, "")
 
-/*
-[folders]
-PlotterFilesFolder = "G:\go_prj\gerber2em7\plt"
-IntermediateFilesFolder = "G:\go_prj\gerber2em7\tmp"
-PNGFilesFolder = "G:\go_prj\gerber2em7\png"
- */
+	/*
+	   [folders]
+	   PlotterFilesFolder = "G:\go_prj\gerber2em7\plt"
+	   IntermediateFilesFolder = "G:\go_prj\gerber2em7\tmp"
+	   PNGFilesFolder = "G:\go_prj\gerber2em7\png"
+	*/
 	v.SetDefault(CfgFoldersPlotterFilesFolder, "")
 	v.SetDefault(CfgFoldersIntermediateFilesFolder, "")
 	v.SetDefault(CfgFoldersPNGFilesFolder, "")

@@ -101,7 +101,7 @@ func (apert *Aperture) Render(xC int, yC int, render *Render) {
 			}
 			polyAperture := ApertureMacro{"Poly", []string{},
 				[]AMVariable{},
-				[]AMPrimitive{AMPrimitivePolygon{AMPrimitive_Polygon,
+				[]AMPrimitive{&AMPrimitivePolygon{AMPrimitive_Polygon,
 					[]interface{}{1.0,
 						float64(apert.Vertices),
 						0.0,

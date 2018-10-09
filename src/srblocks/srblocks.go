@@ -16,7 +16,7 @@ import (
 */
 type SRBlock struct {
 	srString string
-	srId	 string
+	srId     string
 	numX     int
 	numY     int
 	dX       float64
@@ -83,7 +83,7 @@ func (srblock *SRBlock) Init(ins string, fs *FormatSpec) error {
 	srblock.dY = res['J'] * fs.ReadMU()
 	srblock.srString = ins
 
-	hs := ins + strconv.Itoa(srblock.numX) + strconv.Itoa(srblock.numY) + strconv.FormatFloat(srblock.dX,'f', 5, 64) + strconv.FormatFloat(srblock.dY,'f', 5, 64)
+	hs := ins + strconv.Itoa(srblock.numX) + strconv.Itoa(srblock.numY) + strconv.FormatFloat(srblock.dX, 'f', 5, 64) + strconv.FormatFloat(srblock.dY, 'f', 5, 64)
 	h := fnv.New32a()
 	h.Write([]byte(hs))
 	srblock.srId = strconv.FormatInt(int64(h.Sum32()), 10)

@@ -387,10 +387,10 @@ func CreateStepSequence(src *[]string,
 	var step *State
 	for i, s := range *src {
 		if stepCompleted == true {
-//			step = new(State)
+			//			step = new(State)
 			step = NewState()
-//			*step = *(*resSteps)[stepNumber-1]
-			step.CopyOfWithOffset((*resSteps)[stepNumber-1],0,0)
+			//			*step = *(*resSteps)[stepNumber-1]
+			step.CopyOfWithOffset((*resSteps)[stepNumber-1], 0, 0)
 			step.Coord = nil
 			step.PrevCoord = nil
 		}

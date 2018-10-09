@@ -115,9 +115,9 @@ Sometimes used.
 const MaxUint = ^uint(0)
 const MaxInt = int(MaxUint >> 1)
 
-type GCommander interface {
-	String() string
-}
+//type GCommander interface {
+//	String() string
+//}
 
 type GerberCommandId byte
 
@@ -219,11 +219,15 @@ var GCmdExtArray = []GerberCommandId{
 	TO,
 }
 
+/* XY initializer */
+
+var lexFS = xy.FormatSpec{"", "", 0, 0, 0, 0, 1.0}
+
 // first initialization
 func (gc *GerberCommand) Init() {
 	switch gc.cmd {
 	case FS:
-		lexFS.Init( "%FS" + gc.cmdString + "%" , "%MOMM*%")
+		lexFS.Init("%FS"+gc.cmdString+"%", "%MOMM*%")
 	case MO:
 		if gc.cmdString == "IN" {
 			lexFS.MUString = "%MOIN*%"
@@ -231,7 +235,7 @@ func (gc *GerberCommand) Init() {
 		}
 	case D01, D02, D03:
 		gc.xy = xy.NewXY()
-		gc.xy.Init(gc.cmdString + "D", &lexFS, nil )
+		gc.xy.Init(gc.cmdString+"D", &lexFS, nil)
 	case G04, TF, TA:
 
 	default:
@@ -239,15 +243,13 @@ func (gc *GerberCommand) Init() {
 	}
 }
 
-
 var GerberCommandNr int = 0
 
 type GerberCommand struct {
 	cmd       GerberCommandId
 	cmdString string
 	cmdNumber int
-	xy *xy.XY
-
+	xy        *xy.XY
 }
 
 func (gc *GerberCommand) String() string {
@@ -255,15 +257,8 @@ func (gc *GerberCommand) String() string {
 	if gc.xy != nil {
 		xyStr = `,xy:"` + gc.xy.String()
 	}
-	return "{cmd#:" + strconv.Itoa(gc.cmdNumber) + ",cmd:\"" + gc.cmd.String() + "\",val:\"" + gc.cmdString + xyStr +"\"}"
+	return "{cmd#:" + strconv.Itoa(gc.cmdNumber) + ",cmd:\"" + gc.cmd.String() + "\",val:\"" + gc.cmdString + xyStr + "\"}"
 }
-
-//func (gc *GerberCommand) Clone() GerberCommand {
-//	retVal := new(GerberCommand)
-//	retVal.cmd = gc.cmd
-//	retVal.cmdString = copys2(gc.cmdString)
-//	return *retVal
-//}
 
 func NewGerberCommand(cmd GerberCommandId) GerberCommand {
 	retVal := new(GerberCommand)
@@ -292,13 +287,6 @@ func (d Delim) String() string {
 	}
 }
 
-func copys2(a string) string {
-	if len(a) == 0 {
-		return ""
-	}
-	return a[0:1] + a[1:]
-}
-
 // deletes leading '0'
 func FormatGCode(sym string, num string) string {
 
@@ -318,25 +306,25 @@ func FormatGCode(sym string, num string) string {
 	return sym + num
 }
 
-func SplitByGCommands2(buf *[]byte) *[]GerberCommand {
+func SplitByGCommands2(buf []byte) *[]GerberCommand {
 	retVal := make([]GerberCommand, 0)
 	extCmdStartPos := -1
 	extCmdEndPos := -1
 	baseCmdStartPos := -1
 	baseCmdEndPos := -1
-	for i := range *buf {
+	for i := range buf {
 		// purge CR LF
-		if (*buf)[i] == 0x0A || (*buf)[i] == 0x0D {
+		if buf[i] == 0x0A || buf[i] == 0x0D {
 			continue
 		}
 
 		if extCmdStartPos == -1 {
-			if unicode.IsSpace(rune((*buf)[i])) == true {
+			if unicode.IsSpace(rune((buf)[i])) == true {
 				continue
 			}
 		}
 
-		if (*buf)[i] == byte(ExtCmdDelimiter) {
+		if buf[i] == byte(ExtCmdDelimiter) {
 			if extCmdStartPos == -1 && extCmdEndPos == -1 {
 				extCmdStartPos = i
 				continue
@@ -344,7 +332,7 @@ func SplitByGCommands2(buf *[]byte) *[]GerberCommand {
 			if extCmdStartPos != -1 && extCmdEndPos == -1 {
 				extCmdEndPos = i
 			}
-			extCmdString := string((*buf)[extCmdStartPos+1 : extCmdEndPos])
+			extCmdString := string(buf[extCmdStartPos+1 : extCmdEndPos])
 			extCmd := parseExtCmd(extCmdString)
 			if extCmd != nil {
 				retVal = append(retVal, *extCmd)
@@ -355,15 +343,15 @@ func SplitByGCommands2(buf *[]byte) *[]GerberCommand {
 		}
 		if extCmdStartPos == -1 {
 			if baseCmdStartPos == -1 && baseCmdEndPos == -1 {
-				if (*buf)[i] != byte(DataBlockTrailer) {
+				if buf[i] != byte(DataBlockTrailer) {
 					baseCmdStartPos = i
 				}
 				continue
 			}
-			if (*buf)[i] == byte(DataBlockTrailer) && baseCmdStartPos != -1 {
+			if buf[i] == byte(DataBlockTrailer) && baseCmdStartPos != -1 {
 				baseCmdEndPos = i
 
-				baseCmdString := string((*buf)[baseCmdStartPos:baseCmdEndPos])
+				baseCmdString := string(buf[baseCmdStartPos:baseCmdEndPos])
 
 				for {
 					// check for concatenated commands like G01D45XnnnYnnnD01
@@ -496,7 +484,3 @@ func parseBaseCmd(in string) *GerberCommand {
 	glog_t.Error("The string isn't parsed: ", in)
 	return nil
 }
-
-/* XY initializer */
-
-var lexFS = xy.FormatSpec{"", "",0,0,0,0, 1.0}

@@ -168,10 +168,10 @@ func (stack *Stack) Pop() int {
 //
 func CalcExpression(str string, varStorage *map[string]float64) float64 {
 
-//	log.SetFlags(log.Lshortfile)
+	//	log.SetFlags(log.Lshortfile)
 
 	stack := NewStack()
-//	varStorage := make(map[string]float64)
+	//	varStorage := make(map[string]float64)
 	var tempVarId = 0
 	var valName = ""
 	const LEFT_PAR = '('
@@ -188,15 +188,15 @@ func CalcExpression(str string, varStorage *map[string]float64) float64 {
 			if r == RIGHT_PAR {
 				lPar := stack.Pop()
 				substring := str[lPar+1 : i]
-//				log.Println(substring)
+				//				log.Println(substring)
 				tf := TokenizeFormulae(substring, varStorage)
 				val := CalcTokenizedFormulae(&tf)
 				valName = "$$" + strconv.Itoa(tempVarId)
 				tempVarId++
 				(*varStorage)[valName] = val
-//				log.Println("Variable " + valName + " = " + strconv.FormatFloat(val, 'f', 10, 64))
+				//				log.Println("Variable " + valName + " = " + strconv.FormatFloat(val, 'f', 10, 64))
 				str = strings.Replace(str, str[lPar:i+1], valName, 1)
-//				log.Println("Reduced str = " + str)
+				//				log.Println("Reduced str = " + str)
 				break
 			}
 		}
@@ -216,7 +216,7 @@ func (tf *TokenizedFormula) String() string {
 	return strconv.FormatFloat((*tf).value, 'f', 10, 64) + " " + (*tf).operation.String()
 }
 
-func TokenizeFormulae(str string, varStorage *map[string]float64 ) []TokenizedFormula {
+func TokenizeFormulae(str string, varStorage *map[string]float64) []TokenizedFormula {
 	retVal := make([]TokenizedFormula, 0)
 	runeStr := []rune(str)
 	tokenStart := true
@@ -266,8 +266,8 @@ func TokenizeFormulae(str string, varStorage *map[string]float64 ) []TokenizedFo
 					sign = -1
 				}
 			}
-		floatVal = (*varStorage)[convString[sPos:]]
-		floatVal *= sign
+			floatVal = (*varStorage)[convString[sPos:]]
+			floatVal *= sign
 		} else {
 			floatVal, err = strconv.ParseFloat(convString, 64)
 			if err != nil {

@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	. "gerberbasetypes"
+	glog "glog_t"
 	"math"
 	"strconv"
 	"strings"
 	stor "strings_storage"
-	glog "glog_t"
 )
 
 // aperture macro dictionary
@@ -39,24 +39,24 @@ type AMPrimitive interface {
 func NewAMPrimitive(amp AMPrimitiveType, modifStrings []interface{}) AMPrimitive {
 	switch amp {
 	case AMPrimitive_Comment:
-		return AMPrimitiveComment{AMPrimitive_Comment, modifStrings}
+		return &AMPrimitiveComment{AMPrimitive_Comment, modifStrings}
 	case AMPrimitive_Circle:
-		return AMPrimitiveCircle{AMPrimitive_Circle, modifStrings}
+		return &AMPrimitiveCircle{AMPrimitive_Circle, modifStrings}
 	case AMPrimitive_VectLine:
-		return AMPrimitiveVectLine{AMPrimitive_VectLine, modifStrings}
+		return &AMPrimitiveVectLine{AMPrimitive_VectLine, modifStrings}
 	case AMPrimitive_CenterLine:
-		return AMPrimitiveCenterLine{AMPrimitive_CenterLine, modifStrings}
+		return &AMPrimitiveCenterLine{AMPrimitive_CenterLine, modifStrings}
 	case AMPRimitive_OutLine:
-		return AMPrimitiveOutLine{AMPRimitive_OutLine, modifStrings}
+		return &AMPrimitiveOutLine{AMPRimitive_OutLine, modifStrings}
 	case AMPrimitive_Polygon:
-		return AMPrimitivePolygon{AMPrimitive_Polygon, modifStrings}
+		return &AMPrimitivePolygon{AMPrimitive_Polygon, modifStrings}
 	case AMPrimitive_Moire:
-		return AMPrimitiveMoire{AMPrimitive_Moire, modifStrings}
+		return &AMPrimitiveMoire{AMPrimitive_Moire, modifStrings}
 	case AMPrimitive_Thermal:
-		return AMPrimitiveThermal{AMPrimitive_Thermal, modifStrings}
+		return &AMPrimitiveThermal{AMPrimitive_Thermal, modifStrings}
 	default:
-//		panic("unknown aperture macro primitive type")
-	glog.Fatalln("unknown aperture macro primitive type")
+		//		panic("unknown aperture macro primitive type")
+		glog.Fatalln("unknown aperture macro primitive type")
 		return nil
 	}
 
@@ -105,27 +105,27 @@ type AMPrimitiveComment struct {
 	AMModifiers   []interface{}
 }
 
-func (amp AMPrimitiveComment) String() string {
+func (amp *AMPrimitiveComment) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
 	retVal = retVal + ArrayInfo(amp.AMModifiers, []string{})
 	return retVal
 }
 
-func (amp AMPrimitiveComment) Render(x0, y0 int, context *Render) {
+func (amp *AMPrimitiveComment) Render(x0, y0 int, context *Render) {
 	return
 }
 
-func (amp AMPrimitiveComment) Draw(x0, y0 int, x1, y1 int, context *Render) {
+func (amp *AMPrimitiveComment) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	return
 }
 
-func (amp AMPrimitiveComment) Init(scale float64, params []float64) AMPrimitive {
+func (amp *AMPrimitiveComment) Init(scale float64, params []float64) AMPrimitive {
 
 	return NewAMPrimitive(AMPrimitive_Comment, []interface{}{})
 }
 
-func (amp AMPrimitiveComment) Copy() AMPrimitive {
+func (amp *AMPrimitiveComment) Copy() AMPrimitive {
 	var modifStrings []interface{}
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
@@ -144,14 +144,14 @@ type AMPrimitiveCircle struct {
 	//cirHD	int
 }
 
-func (amp AMPrimitiveCircle) String() string {
+func (amp *AMPrimitiveCircle) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
 	retVal = retVal + ArrayInfo(amp.AMModifiers, []string{"Exposure", "Diameter", "Center X", "Center Y", "Rotation", "Hole diameter"})
 	return retVal
 }
 
-func (amp AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
+func (amp *AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
 	// coordinates of the circle center after rotation
 	xd, yd, _ := RotatePoint(amp.AMModifiers[2].(float64), amp.AMModifiers[3].(float64), amp.AMModifiers[4].(float64))
 	xC := x0 + transformCoord(xd, context.XRes)
@@ -172,7 +172,7 @@ func (amp AMPrimitiveCircle) Render(x0, y0 int, context *Render) {
 	return
 }
 
-func (amp AMPrimitiveCircle) Draw(x0, y0 int, x1, y1 int, context *Render) {
+func (amp *AMPrimitiveCircle) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	BadMethod()
 	return
 }
@@ -189,7 +189,7 @@ func (amp AMPrimitiveCircle) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	The rotation modifier is optional. The default is no rotation.
 5	Hole diameter (optional)
 */
-func (amp AMPrimitiveCircle) Init(scale float64, params []float64) AMPrimitive {
+func (amp *AMPrimitiveCircle) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 4 {
 		//panic("unable to create aperture macro primitive circle - not enough parameters, have " +
 		//	strconv.Itoa(len(amp.AMModifiers)) + ", need 4 or 5")
@@ -224,7 +224,7 @@ func (amp AMPrimitiveCircle) Init(scale float64, params []float64) AMPrimitive {
 	return amp
 }
 
-func (amp AMPrimitiveCircle) Copy() AMPrimitive {
+func (amp *AMPrimitiveCircle) Copy() AMPrimitive {
 	var modifStrings []interface{}
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
@@ -238,7 +238,7 @@ type AMPrimitiveVectLine struct {
 	AMModifiers   []interface{}
 }
 
-func (amp AMPrimitiveVectLine) String() string {
+func (amp *AMPrimitiveVectLine) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
 	// Exposure, Width, Start X, Start Y, End X, End Y, Rotation
@@ -246,7 +246,7 @@ func (amp AMPrimitiveVectLine) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
+func (amp *AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 	// if rotation = 0 use rectangle algorithm, polygon otherwise
 	rot := amp.AMModifiers[6].(float64)
 	width := transformCoord(amp.AMModifiers[1].(float64), context.XRes)
@@ -320,11 +320,11 @@ func (amp AMPrimitiveVectLine) Render(x0, y0 int, context *Render) {
 	return
 }
 
-func (amp AMPrimitiveVectLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
+func (amp *AMPrimitiveVectLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	BadMethod()
 }
 
-func (amp AMPrimitiveVectLine) Init(scale float64, params []float64) AMPrimitive {
+func (amp *AMPrimitiveVectLine) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 7 {
 		glog.Fatalln("unable to create aperture macro primitive vector line - not enough parameters, " +
 			strconv.Itoa(len(amp.AMModifiers)) + " given, need 7")
@@ -342,7 +342,7 @@ func (amp AMPrimitiveVectLine) Init(scale float64, params []float64) AMPrimitive
 	return amp
 }
 
-func (amp AMPrimitiveVectLine) Copy() AMPrimitive {
+func (amp *AMPrimitiveVectLine) Copy() AMPrimitive {
 	var modifStrings []interface{}
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
@@ -356,7 +356,7 @@ type AMPrimitiveCenterLine struct {
 	AMModifiers   []interface{}
 }
 
-func (amp AMPrimitiveCenterLine) String() string {
+func (amp *AMPrimitiveCenterLine) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
 	// Exposure, Width, Hight, Center X, Center Y, Rotation
@@ -364,13 +364,13 @@ func (amp AMPrimitiveCenterLine) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveCenterLine) Render(x0, y0 int, context *Render) {
+func (amp *AMPrimitiveCenterLine) Render(x0, y0 int, context *Render) {
 	// if rotation = 0 use rectangle algorithm, polygon otherwise
 	// make VectorLine and use it
 
 	var vLineModifs = []interface{}{
-		amp.AMModifiers[0],                                                // exposure
-		amp.AMModifiers[2],                                                // width of centerline goes as height of vectorline
+		amp.AMModifiers[0], // exposure
+		amp.AMModifiers[2], // width of centerline goes as height of vectorline
 		amp.AMModifiers[3].(float64) - (amp.AMModifiers[1].(float64))/2.0, // start X
 		amp.AMModifiers[4].(float64),                                      // start Y
 		amp.AMModifiers[3].(float64) + (amp.AMModifiers[1].(float64))/2.0, // // end X
@@ -382,11 +382,11 @@ func (amp AMPrimitiveCenterLine) Render(x0, y0 int, context *Render) {
 	vLine.Render(x0, y0, context)
 	return
 }
-func (amp AMPrimitiveCenterLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
+func (amp *AMPrimitiveCenterLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	BadMethod()
 }
 
-func (amp AMPrimitiveCenterLine) Init(scale float64, params []float64) AMPrimitive {
+func (amp *AMPrimitiveCenterLine) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
 		glog.Fatalln("unable to create aperture macro primitive center line - not enough parameters, " +
 			strconv.Itoa(len(amp.AMModifiers)) + " given, need 6")
@@ -404,7 +404,7 @@ func (amp AMPrimitiveCenterLine) Init(scale float64, params []float64) AMPrimiti
 	return amp
 }
 
-func (amp AMPrimitiveCenterLine) Copy() AMPrimitive {
+func (amp *AMPrimitiveCenterLine) Copy() AMPrimitive {
 	var modifStrings []interface{}
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
@@ -418,7 +418,7 @@ type AMPrimitiveOutLine struct {
 	AMModifiers   []interface{}
 }
 
-func (amp AMPrimitiveOutLine) String() string {
+func (amp *AMPrimitiveOutLine) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
 	//Exposure, # vertices, Start X, Start Y, Subsequent points..., Rotation
@@ -432,7 +432,7 @@ func (amp AMPrimitiveOutLine) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveOutLine) Render(x0, y0 int, context *Render) {
+func (amp *AMPrimitiveOutLine) Render(x0, y0 int, context *Render) {
 	//	numCoordPairs := int(convertToFloat(amp.AMModifiers[1])) + 1
 	numCoordPairs := int(amp.AMModifiers[1].(float64)) + 1
 	rot := amp.AMModifiers[len(amp.AMModifiers)-1].(float64)
@@ -461,7 +461,7 @@ func (amp AMPrimitiveOutLine) Render(x0, y0 int, context *Render) {
 	return
 }
 
-func (amp AMPrimitiveOutLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
+func (amp *AMPrimitiveOutLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	BadMethod()
 
 }
@@ -482,7 +482,7 @@ func (amp AMPrimitiveOutLine) Draw(x0, y0 int, x1, y1 int, context *Render) {
 		The primitive is rotated around the origin of the macro definition, i.e. the
 		(0, 0) point of macro coordinates.
 */
-func (amp AMPrimitiveOutLine) Init(scale float64, params []float64) AMPrimitive {
+func (amp *AMPrimitiveOutLine) Init(scale float64, params []float64) AMPrimitive {
 	numCoordPairs := int(convertToFloat(amp.AMModifiers[1], params))
 	if numCoordPairs < 3 {
 		glog.Fatalln("unable to create aperture macro primitive outline - not enough coordinate pairs, " +
@@ -508,7 +508,7 @@ func (amp AMPrimitiveOutLine) Init(scale float64, params []float64) AMPrimitive 
 	return amp
 }
 
-func (amp AMPrimitiveOutLine) Copy() AMPrimitive {
+func (amp *AMPrimitiveOutLine) Copy() AMPrimitive {
 	var modifStrings []interface{}
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
@@ -522,7 +522,7 @@ type AMPrimitivePolygon struct {
 	AMModifiers   []interface{}
 }
 
-func (amp AMPrimitivePolygon) String() string {
+func (amp *AMPrimitivePolygon) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
 	//Exposure, # vertices, Center X, Center Y, Diameter, Rotation
@@ -530,7 +530,7 @@ func (amp AMPrimitivePolygon) String() string {
 	return retVal
 }
 
-func (amp AMPrimitivePolygon) Render(x0, y0 int, context *Render) {
+func (amp *AMPrimitivePolygon) Render(x0, y0 int, context *Render) {
 	rot := amp.AMModifiers[5].(float64)
 	numVertices := amp.AMModifiers[1].(float64)
 	centerX := amp.AMModifiers[2].(float64)
@@ -561,11 +561,11 @@ func (amp AMPrimitivePolygon) Render(x0, y0 int, context *Render) {
 	context.MovePen(int(verticesX[0]), int(verticesY[0]), x0, y0, colr)
 }
 
-func (amp AMPrimitivePolygon) Draw(x0, y0 int, x1, y1 int, context *Render) {
+func (amp *AMPrimitivePolygon) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	BadMethod()
 }
 
-func (amp AMPrimitivePolygon) Init(scale float64, params []float64) AMPrimitive {
+func (amp *AMPrimitivePolygon) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
 		glog.Fatalln("unable to create aperture macro primitive polygon - not enough parameters, " +
 			strconv.Itoa(len(amp.AMModifiers)) + " given, need 6")
@@ -583,7 +583,7 @@ func (amp AMPrimitivePolygon) Init(scale float64, params []float64) AMPrimitive 
 	return amp
 }
 
-func (amp AMPrimitivePolygon) Copy() AMPrimitive {
+func (amp *AMPrimitivePolygon) Copy() AMPrimitive {
 	var modifStrings []interface{}
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
@@ -597,7 +597,7 @@ type AMPrimitiveMoire struct {
 	AMModifiers   []interface{}
 }
 
-func (amp AMPrimitiveMoire) String() string {
+func (amp *AMPrimitiveMoire) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
 	//Center X, Center Y, Outer diameter rings, Ring thickness, Gap, Max # rings, Crosshair thickness, Crosshair length, Rotation
@@ -606,7 +606,7 @@ func (amp AMPrimitiveMoire) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
+func (amp *AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
 	outerDia := amp.AMModifiers[2].(float64)
 	rThickness := amp.AMModifiers[3].(float64)
 	gap := amp.AMModifiers[4].(float64)
@@ -614,7 +614,7 @@ func (amp AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
 	ringsCount := 0
 	ring := AMPrimitiveCircle{AMPrimitive_Circle, []interface{}{}}
 	for ringsCount < maxNumRings {
-		ring.AMModifiers = append(ring.AMModifiers, 1.0)                            // polarity
+		ring.AMModifiers = append(ring.AMModifiers, 1.0)                          // polarity
 		ring.AMModifiers = append(ring.AMModifiers, outerDia)                     // outer diameter
 		ring.AMModifiers = append(ring.AMModifiers, amp.AMModifiers[0].(float64)) // center X
 		ring.AMModifiers = append(ring.AMModifiers, amp.AMModifiers[1].(float64)) // center Y
@@ -633,7 +633,7 @@ func (amp AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
 	if (xHairThickness != 0) && (xHairLen != 0) {
 		vectLine := AMPrimitiveVectLine{AMPrimitive_VectLine, []interface{}{}}
 		//	"Exposure", "Width", "Start X", "Start Y", "End X", "End Y", "Rotation"
-		vectLine.AMModifiers = append(vectLine.AMModifiers, 1.0)                                       // polarity
+		vectLine.AMModifiers = append(vectLine.AMModifiers, 1.0)                                     // polarity
 		vectLine.AMModifiers = append(vectLine.AMModifiers, xHairThickness)                          // width
 		vectLine.AMModifiers = append(vectLine.AMModifiers, amp.AMModifiers[0].(float64)-xHairLen/2) // start X
 		vectLine.AMModifiers = append(vectLine.AMModifiers, amp.AMModifiers[1].(float64))            // start Y
@@ -650,7 +650,7 @@ func (amp AMPrimitiveMoire) Render(x0, y0 int, context *Render) {
 	return
 }
 
-func (amp AMPrimitiveMoire) Draw(x0, y0 int, x1, y1 int, context *Render) {
+func (amp *AMPrimitiveMoire) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	BadMethod()
 }
 
@@ -672,7 +672,7 @@ func (amp AMPrimitiveMoire) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	(0, 0) point of macro coordinates.
 */
 
-func (amp AMPrimitiveMoire) Init(scale float64, params []float64) AMPrimitive {
+func (amp *AMPrimitiveMoire) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 7 {
 		glog.Fatalln("unable to create aperture macro primitive moire - not enough parameters, " +
 			strconv.Itoa(len(amp.AMModifiers)) + " given, need 7")
@@ -690,7 +690,7 @@ func (amp AMPrimitiveMoire) Init(scale float64, params []float64) AMPrimitive {
 	return amp
 }
 
-func (amp AMPrimitiveMoire) Copy() AMPrimitive {
+func (amp *AMPrimitiveMoire) Copy() AMPrimitive {
 	var modifStrings []interface{}
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
@@ -704,7 +704,7 @@ type AMPrimitiveThermal struct {
 	AMModifiers   []interface{}
 }
 
-func (amp AMPrimitiveThermal) String() string {
+func (amp *AMPrimitiveThermal) String() string {
 	retVal := "Aperture macro primitive:\t"
 	retVal = retVal + amp.PrimitiveType.String() + "\n"
 	//Center X, Center Y, Outer diameter, Inner diameter, Gap, Rotation
@@ -712,7 +712,7 @@ func (amp AMPrimitiveThermal) String() string {
 	return retVal
 }
 
-func (amp AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
+func (amp *AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
 
 	rot := amp.AMModifiers[5].(float64)
 	innerRadius := amp.AMModifiers[3].(float64) / 2
@@ -804,7 +804,7 @@ func (amp AMPrimitiveThermal) Render(x0, y0 int, context *Render) {
 	return
 }
 
-func (amp AMPrimitiveThermal) Draw(x0, y0 int, x1, y1 int, context *Render) {
+func (amp *AMPrimitiveThermal) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	BadMethod()
 
 }
@@ -823,7 +823,7 @@ func (amp AMPrimitiveThermal) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	The primitive is rotated around the origin of the macro definition, i.e.
 	(0, 0) point of macro coordinates.
 */
-func (amp AMPrimitiveThermal) Init(scale float64, params []float64) AMPrimitive {
+func (amp *AMPrimitiveThermal) Init(scale float64, params []float64) AMPrimitive {
 	if len(amp.AMModifiers) < 6 {
 		glog.Fatalln("unable to create aperture macro primitive thermal - not enough parameters, " +
 			strconv.Itoa(len(amp.AMModifiers)) + " given, need 6")
@@ -841,7 +841,7 @@ func (amp AMPrimitiveThermal) Init(scale float64, params []float64) AMPrimitive 
 	return amp
 }
 
-func (amp AMPrimitiveThermal) Copy() AMPrimitive {
+func (amp *AMPrimitiveThermal) Copy() AMPrimitive {
 	var modifStrings []interface{}
 	for i := range amp.AMModifiers {
 		modifStrings = append(modifStrings, amp.AMModifiers[i])
@@ -875,7 +875,7 @@ type ApertureMacro struct {
 	Primitives []AMPrimitive
 }
 
-func (am ApertureMacro) Copy() ApertureMacro {
+func (am *ApertureMacro) Copy() ApertureMacro {
 	var retVal ApertureMacro
 	retVal.Name = "" + am.Name
 	for i := range am.Comments {
@@ -963,7 +963,7 @@ func NewApertureMacro(src string) (*ApertureMacro, error) {
 	return retVal, nil
 }
 
-func (am ApertureMacro) Render(x0, y0 int, context *Render) {
+func (am *ApertureMacro) Render(x0, y0 int, context *Render) {
 
 	for i := range am.Primitives {
 		am.Primitives[i].Render(x0, y0, context)
@@ -971,7 +971,7 @@ func (am ApertureMacro) Render(x0, y0 int, context *Render) {
 	return
 }
 
-func (am ApertureMacro) Draw(x0, y0 int, x1, y1 int, context *Render) {
+func (am *ApertureMacro) Draw(x0, y0 int, x1, y1 int, context *Render) {
 
 	for i := range am.Primitives {
 		am.Primitives[i].Draw(x0, y0, x1, y1, context)
@@ -979,8 +979,8 @@ func (am ApertureMacro) Draw(x0, y0 int, x1, y1 int, context *Render) {
 	return
 }
 
-func (am ApertureMacro) Init(scale float64, params []float64) ApertureMacro {
-	return am
+func (am *ApertureMacro) Init(scale float64, params []float64) ApertureMacro {
+	return *am
 }
 
 /*
@@ -1119,7 +1119,7 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 					for n := range instance.Variables {
 						// have to recalc variables before initializing next primitive
 						if instance.Variables[n].PrimitiveIndex == k {
-							varStorage := make (map[string]float64)
+							varStorage := make(map[string]float64)
 							for i, pf := range ParamsF {
 								varStorage["$"+strconv.Itoa(i+1)] = pf
 							}
@@ -1132,7 +1132,7 @@ func NewApertureInstance(gerberString string, scale float64) *Aperture {
 								ParamsF = append(ParamsF, 0.0)
 								addParamsF--
 							}
-							ParamsF[varIndex-1] = calculator.CalcExpression(instance.Variables[n].Value,&varStorage)
+							ParamsF[varIndex-1] = calculator.CalcExpression(instance.Variables[n].Value, &varStorage)
 						}
 					}
 					instance.Primitives[k] = instance.Primitives[k].Init(scale, ParamsF)
@@ -1270,9 +1270,9 @@ func convertToFloat(arg interface{}, params []float64) float64 {
 			// detect expression
 			if strings.IndexAny(arg.(string), "+-xX/") != -1 {
 				// there is an expression
-				varStorage := make (map[string]float64)
+				varStorage := make(map[string]float64)
 				for i, f := range params {
-					varStorage["$"+ strconv.Itoa(i+1)]  = f
+					varStorage["$"+strconv.Itoa(i+1)] = f
 				}
 				// calculate
 				retVal := calculator.CalcExpression(arg.(string), &varStorage)
@@ -1282,7 +1282,7 @@ func convertToFloat(arg interface{}, params []float64) float64 {
 
 			varNum, err := strconv.Atoi(arg.(string)[1:])
 			if err != nil {
-//				panic(panicString3 + arg.(string))
+				//				panic(panicString3 + arg.(string))
 				glog.Fatal(panicString3 + arg.(string))
 			}
 			if len(params) >= varNum {

@@ -95,14 +95,15 @@ func TestSplitByGCommands(t *testing.T) {
 
 	for _, f := range files {
 		fmt.Println("BEGIN FILE ------------------------------------------------------")
-//		ff := f.Name()
+		//		ff := f.Name()
 		ff := "PCB_Fabrication_Data_in_Gerber_Example_1_Copper$L1.gbr"
+
 		fmt.Println(f.Name())
 		content, err = ioutil.ReadFile(filepath.Join(filepath.FromSlash(dir), ff))
 		if err != nil {
 			t.Fatal(err)
 		}
-		result := SplitByGCommands2(&content)
+		result := SplitByGCommands2(content)
 
 		for i := range *result {
 			t.Logf("%s\n", (*result)[i].String())
@@ -119,7 +120,7 @@ func TestSplitByGCommandsArr(t *testing.T) {
 	}
 	content := []byte(contents)
 
-	result := SplitByGCommands2(&content)
+	result := SplitByGCommands2(content)
 
 	if len(*result) != len(td) {
 		t.Error("len(*result) != len(td) :" + strconv.Itoa(len(*result)) + "!=" + strconv.Itoa(len(td)))

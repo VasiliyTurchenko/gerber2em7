@@ -75,10 +75,10 @@ func usage() {
 func Main() {
 
 	var (
-		PlotterFilesFolder      = ""
-//		IntermediateFilesFolder = ""
-		PNGFilesFolder          = ""
-		inFileName              = ""
+		PlotterFilesFolder = ""
+		//		IntermediateFilesFolder = ""
+		PNGFilesFolder = ""
+		inFileName     = ""
 	)
 
 	var sourceFileName string
@@ -120,7 +120,7 @@ func Main() {
 	glog.Infoln(timeInfo(timeStamp)+"input file:", sourceFileName)
 
 	PlotterFilesFolder = filepath.FromSlash(viperConfig.Get(configurator.CfgFoldersPlotterFilesFolder).(string))
-//	IntermediateFilesFolder = filepath.FromSlash(viperConfig.Get(configurator.CfgFoldersIntermediateFilesFolder).(string))
+	//	IntermediateFilesFolder = filepath.FromSlash(viperConfig.Get(configurator.CfgFoldersIntermediateFilesFolder).(string))
 	PNGFilesFolder = filepath.FromSlash(viperConfig.Get(configurator.CfgFoldersPNGFilesFolder).(string))
 
 	//glog.Infoln("folders.PlotterFilesFolder = " + PlotterFilesFolder)
@@ -146,7 +146,7 @@ func Main() {
 		gerberStrings.Accept(squeezeString(strings.ToUpper(str)))
 	}
 	// save splitted strings to a file
-	saveIntermediate(gerberStrings, inFileName + "_pure_gerber.txt")
+	saveIntermediate(gerberStrings, inFileName+"_pure_gerber.txt")
 
 	// search for format definition strings
 	mo, err := searchMO(gerberStrings)
@@ -233,7 +233,7 @@ func Main() {
 	// Global array of commands
 	gerberStrings, gerberStrings2 = gerberStrings2, nil
 
-	saveIntermediate(gerberStrings, inFileName + "_before_steps.txt")
+	saveIntermediate(gerberStrings, inFileName+"_before_steps.txt")
 
 	// Main sequence of steps
 	arrayOfSteps = make([]*render.State, gerberStrings.Len()+1)
