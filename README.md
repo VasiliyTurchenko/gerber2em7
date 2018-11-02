@@ -7,5 +7,5 @@ TODO:
 
 Light aperture support
 
-HOW IT WORKS:
+example video:
 https://www.youtube.com/watch?v=IQG_BCtChks
